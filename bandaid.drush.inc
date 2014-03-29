@@ -3,6 +3,20 @@
 /**
  * @file
  * Bandaid for Drush.
+ *
+ * Warning: This is still much a proof of concept, with duplicate code, harcoded
+ * values, missing documentation and lacking error messages. Those of a sensible
+ * dispossition should avert their eyes.
+ *
+ * todo/wishlist:
+ * - Use a system temp dir.
+ * - Patch command to apply a new patch and update yaml file.
+ * - Use the same git cache as make.
+ * - Support core.
+ * - Use Exceptions and wrap the command functions in try/catch. Makes it
+ *   cleaner to refactor stuff out into helper funktions, without having to have
+ *   if statements to handle failure all over the place.
+ * - Support local files in yaml file.
  */
 
 require 'vendor/autoload.php';
