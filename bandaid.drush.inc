@@ -24,6 +24,17 @@ function bandaid_drush_command() {
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   );
 
+  $items['bandaid-apply'] = array(
+    'description' => 'Apply patches.',
+    'arguments' => array(
+      'project' => 'Project to apply patches to.',
+    ),
+    // 'options' => array(
+    //   'no-confirm' => 'Do not require confirmation before running.',
+    // ),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+  );
+
   return $items;
 }
 
@@ -46,7 +57,11 @@ function drush_bandaid_tearoff($project) {
   }
 
   if (file_exists($local_patch_file)) {
-    return drush_set_error('LOCAL_PATCH_FILE_EXISTS');
+    drush_log(dt('Local patch file exists, it will be overwritten.'), 'warning');
+    if (!drush_confirm('Continue anyway?')) {
+      return drush_user_abort();
+    }
+
   }
 
   if (file_exists($yaml_file)) {
@@ -67,7 +82,7 @@ function drush_bandaid_tearoff($project) {
 
   $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
   $tag = $version_info['core'] . '-' . $version_info['version'];
-  $checkout_ref = $version_info['version'];
+  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
   if ($version_info['commits']) {
     // Get history from base version to head.
     if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
@@ -138,12 +153,14 @@ function drush_bandaid_tearoff($project) {
   }
 
   // Create local patch file.
-  if (!drush_shell_exec('git diff bandaid_local bandaid_patch')) {
+  if (!drush_shell_exec('git diff bandaid_patch bandaid_local')) {
     return drush_set_error('CANNOT_DIFF');
   }
   $patch = implode("\n", drush_shell_exec_output());
   if (!empty($patch)) {
-    if (!file_put_contents($local_patch_file, $patch)) {
+    // Due to going through drush_shell_exec_output(), we lost the trailing
+    // newline.
+    if (!file_put_contents($local_patch_file, $patch . "\n")) {
       return drush_set_error('CANNOT_CREATE_PATCH');
     }
   }
@@ -186,6 +203,143 @@ function drush_bandaid_tearoff($project) {
     commit
     diff branches, create <project>.local.patch
   */
+}
+
+function drush_bandaid_apply($project) {
+  $project_dir = realpath(drush_cwd() . '/' . $project);
+  $yaml_file = $project_dir . '.yml';
+  $info_file = $project_dir . '/' . $project . '.info';
+  $local_patch_file = $project_dir . '.local.patch';
+
+  chdir(dirname($project_dir));
+  $project = basename($project_dir);
+
+  if (!file_exists($info_file)) {
+    return drush_set_error('NO_INFO_FILE');
+  }
+
+  $version_info = _bandaid_parse_info($info_file);
+  if (!$version_info) {
+    return FALSE;
+  }
+
+  if (file_exists($yaml_file)) {
+    $yaml = Yaml::parse($yaml_file);
+    $patches = $yaml['patches'];
+  }
+
+  // Clone repo.
+  drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
+  $checkout_name = 'somethingtochange';
+  $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
+  if (!drush_shell_exec_interactive('git clone --reference /home/xen/.drush/cache/git/ctools-efa8c8e55fd7b5e55f74a3dc87da964c ssh://git@git.drupal.org/project/' . $version_info['project'] . ' ' . $checkout_name)) {
+    return drush_set_error('CANNOT_CLONE');
+  }
+  drush_register_file_for_deletion(realpath($checkout_name));
+
+  chdir($checkout_name);
+
+  $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
+  $tag = $version_info['core'] . '-' . $version_info['version'];
+  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
+  if ($version_info['commits']) {
+    // Get history from base version to head.
+    if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
+      drush_print_r(drush_shell_exec_output());
+      return drush_set_error('CANNOT_GET_HISTORY');
+    }
+    // Flip the order so we have the oldest commit first.
+    $commits = array_reverse(drush_shell_exec_output());
+    // Pick out the nth commit, and split the line.
+    list($checkout_ref, $description) = explode(' ', $commits[$version_info['commits'] - 1], 2);
+  }
+
+  // Checkout base version.
+  drush_log(dt('Checking out @ref.', array('@ref' => $checkout_ref)), 'status');
+  if (!empty($description)) {
+    drush_log(dt('Commit message: @desc.', array('@desc' => $description)), 'status');
+  }
+  if (!drush_shell_exec('git checkout ' . $checkout_ref)) {
+    return drush_set_error('CANNOT_CHECKOUT_BASE');
+  }
+
+  // Create local branch.
+  if (!drush_shell_exec('git branch bandaid_local')) {
+    return drush_set_error('CANNOT_BRANCH');
+  }
+
+  // Copy the local project to the local branch.
+  if (!drush_shell_exec('git checkout bandaid_local')) {
+    return drush_set_error('CANNOT_CHECKOUT_BRANCH');
+  }
+  // Clear out the files in the repo and copy in the files from the project.
+  foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
+    drush_delete_dir($file->filename);
+  }
+  drush_copy_dir($project_dir, $checkout_dir, FILE_EXISTS_MERGE);
+
+  // Commit local version.
+  if (!drush_shell_exec('git add --all .')) {
+    return drush_set_error('CANNOT_ADD');
+  }
+  if (!drush_shell_exec('git commit -m ' . drush_escapeshellarg("Committing local."))) {
+    return drush_set_error('CANNOT_COMMIT');
+  }
+
+  // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
+  // not polute the diff.
+  if (file_exists('LICENSE.txt')) {
+    unlink('LICENSE.txt');
+  }
+  if (!_bandaid_fix_info_files($checkout_dir)) {
+    return drush_set_error('INFO_FILE_ERROR');
+  }
+
+  // Create a diff to show the user.
+  if (!drush_shell_exec('git diff ' . $checkout_ref)) {
+    return drush_set_error('CANNOT_DIFF');
+  }
+  $patch = implode("\n", drush_shell_exec_output());
+  if (!empty($patch)) {
+    drush_log(dt('Local changes detected.'), 'warning');
+    drush_print($patch);
+    if (!drush_confirm('Continue anyway?')) {
+      return drush_user_abort();
+    }
+  }
+  // Reset so we get the state back to the same as the local version.
+  if (!drush_shell_exec('git reset --hard')) {
+    return drush_set_error('CANNOT_DIFF');
+  }
+
+  // Apply patches to local branch.
+  if (!empty($patches)) {
+    if (!_bandaid_patch($patches)) {
+      return;
+    }
+  }
+
+  // Apply a local patch.
+  if (file_exists($local_patch_file)) {
+    if (!drush_shell_exec('GIT_DIR=. git apply -p1 %s --verbose', $local_patch_file)) {
+      return drush_set_error('CANNOT_PATCH');
+    }
+    drush_log(dt('Patched with @filename.', array('@filename' => basename($local_patch_file))), 'ok');
+    unlink($local_patch_file);
+  }
+
+  if (!drush_move_dir($project_dir, $project_dir . '.old')) {
+    return FALSE;
+  }
+
+  if (!drush_delete_dir('.git')) {
+    return drush_set_error('CANNOT_DELETE_GIT');
+  }
+  chdir(dirname($project_dir));
+  if (!drush_move_dir($checkout_dir, $project_dir)) {
+    return FALSE;
+  }
+  drush_register_file_for_deletion($project_dir . '.old');
 
 }
 
@@ -198,7 +352,7 @@ function _bandaid_parse_info($file) {
       return drush_set_error('NO_VERSION');
     }
     // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
-    if (!preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d)+-dev))}', $info['version'], $matches)) {
+    if (!preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d)+-dev)?)}', $info['version'], $matches)) {
       return drush_set_error('BAD_VERSION', dt('Could not parse version "@version"', array('@version' => $info['version'])));
     }
     return array(
@@ -323,8 +477,9 @@ function _bandaid_fix_info_files($dir) {
   foreach ($info_files as $info_file) {
     $content = file_get_contents($info_file->filename);
     // Yeah, ugly, but d.o adds one newline, while drush adds two. And don't get
-    // me started on the one versus two spaces.
-    $content = preg_replace('/\\n;\s+Information added by Drupal.org.*$/s', '', $content);
+    // me started on the one versus two spaces. At least we know we follow the
+    // d.o format ourselves.
+    $content = preg_replace('/\\n;\s+Information added by (Drupal.org|bandaid).*$/s', '', $content);
     $content = preg_replace('/\\n\\n;\s+Information added by drush.*$/s', '', $content);
     if (!file_put_contents($info_file->filename, $content)) {
       return FALSE;
