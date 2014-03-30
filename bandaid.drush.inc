@@ -455,7 +455,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
       );
       $reason = trim(implode("\n", $reason));
       if (!empty($reason)) {
-        $new_patch['reason'] = $reason . "\n";
+        $new_patch['reason'] = $reason;
       }
     }
     else {
