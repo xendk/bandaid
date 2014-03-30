@@ -608,9 +608,9 @@ function _bandaid_fix_info_files($dir) {
   foreach ($info_files as $info_file) {
     $content = file_get_contents($info_file->filename);
     // Yeah, ugly, but d.o adds one newline, while drush adds two. And don't get
-    // me started on the one versus two spaces. At least we know we follow the
-    // d.o format ourselves.
-    $content = preg_replace('/\\n;\s+Information added by (Drupal.org|bandaid).*$/s', '', $content);
+    // me started on the one versus two spaces or that d.o seems to be random in
+    // its capitalization. At least we know we follow the d.o format ourselves.
+    $content = preg_replace('/\\n;\s+Information added by ([Dd]rupal.org|bandaid).*$/s', '', $content);
     $content = preg_replace('/\\n\\n;\s+Information added by drush.*$/s', '', $content);
     if (!file_put_contents($info_file->filename, $content)) {
       return FALSE;
