@@ -577,20 +577,19 @@ function _bandaid_patch($patches) {
           $message = "\n\n" . $patch['reason'];
         }
         if (!drush_shell_exec('git add --all .')) {
-          drush_set_error('CANNOT_ADD');
+          return drush_set_error('CANNOT_ADD');
         }
         if (!drush_shell_exec('git commit -m ' . drush_escapeshellarg($message))) {
-          drush_set_error('CANNOT_COMMIT');
+          return drush_set_error('CANNOT_COMMIT');
         }
       }
       else {
-        drush_set_error('PATCH_ERROR', dt("Unable to patch with @filename.", $dt_args));
+        return drush_set_error('PATCH_ERROR', dt("Unable to patch with @filename.", $dt_args));
       }
       drush_op('unlink', $filename);
     }
     else {
-      drush_set_error('DOWNLOAD_ERROR', 'Unable to download ' . $patch['patch'] . '.');
-      return FALSE;
+      return drush_set_error('DOWNLOAD_ERROR', 'Unable to download ' . $patch['patch'] . '.');
     }
   }
   return TRUE;
