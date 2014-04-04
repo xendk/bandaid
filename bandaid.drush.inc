@@ -568,8 +568,6 @@ function _bandaid_patch($patches) {
         //   $pathinfo = pathinfo($patch_url);
         //   $patch_url = $pathinfo['basename'];
         // }
-        $patches_txt .= '- ' . $patch_url . "\n";
-
         drush_log(dt('Patched with @filename.', $dt_args), 'ok');
         $message = "Patched with " . $patch['patch'];
         if (!empty($patch['reason'])) {
