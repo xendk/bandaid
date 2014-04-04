@@ -10,6 +10,7 @@
  *
  * todo/wishlist:
  * - Unit tests.
+ * - exif_custom has a licence file committed and some funny info stuff.
  * - Use a system temp dir.
  * - Common function for checking that the project exists.
  * - Use the same git cache as make.
@@ -20,6 +21,8 @@
  * - Support local files in yaml file.
  * - patch: When passed an URL to an issue, use that as home, and ask which
  *   patch mentioned in the page to use.
+ * - create patch command that just outputs the local patch, without changing
+ *   the project.
  */
 
 require 'vendor/autoload.php';
