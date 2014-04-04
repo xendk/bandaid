@@ -39,6 +39,10 @@ function bandaid_drush_command() {
       'patch' => 'URL of patch to apply.',
       'project' => 'Project to patch. If left out, current dir is pactched.',
     ),
+    'options' => array(
+      'home' => 'URL of issue.',
+      'reason' => 'Reason for patch.',
+    ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   );
 
@@ -431,46 +435,54 @@ function drush_bandaid_patch($patch, $project = NULL) {
       'patch' => $patch,
     );
 
-    $home = drush_prompt(dt("Issue (or other web page) of patch?"), NULL, FALSE);
+    $home = drush_get_option('home', NULL);
+    if (is_null($home)) {
+      $home = drush_prompt(dt("Issue (or other web page) of patch?"), NULL, FALSE);
+    }
     if (!empty($home)) {
       $new_patch['home'] = $home;
     }
 
-    // Find an editor.
-    foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
-      $editor = getenv($var);
-      drush_print($var . ':' . $editor);
-      if ($editor) {
-        break;
+    $reason = drush_get_option('reason', NULL);
+    if (is_null($reason)) {
+      // Find an editor.
+      foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
+        $editor = getenv($var);
+        drush_print($var . ':' . $editor);
+        if ($editor) {
+          break;
+        }
       }
-    }
 
-    if ($editor) {
-      $reason_file_name = drush_tempnam('bandaid_');
-      $reason_content = "
+      if ($editor) {
+        $reason_file_name = drush_tempnam('bandaid_');
+        $reason_content = "
 
 # Patch: $patch" . (!empty($home) ? "\n# Home: " . $home : '') . "
 # Enter your explanation for adding this patch above.
 # Lines staring with # will be removed";
-      file_put_contents($reason_file_name, $reason_content);
-      drush_shell_exec_interactive($editor . " %s", $reason_file_name);
-      $reason = explode("\n", file_get_contents($reason_file_name));
-      $reason = array_filter($reason, function ($line) {
-                  return $line[0] != '#';
-                }
-      );
-      $reason = trim(implode("\n", $reason));
-      if (!empty($reason)) {
-        $new_patch['reason'] = $reason;
+        file_put_contents($reason_file_name, $reason_content);
+        drush_shell_exec_interactive($editor . " %s", $reason_file_name);
+        $reason = explode("\n", file_get_contents($reason_file_name));
+        $reason = array_filter($reason, function ($line) {
+                    return $line[0] != '#';
+                  }
+        );
+        $reason = trim(implode("\n", $reason));
+      }
+      else {
+        // Fall back to using drush_prompt.
+        $reason = drush_prompt(dt("Reason for patching?"), NULL, FALSE);
+        if (!empty($reason)) {
+          $new_patch['reason'] = $reason;
+        }
       }
     }
-    else {
-      // Fall back to using drush_prompt.
-      $reason = drush_prompt(dt("Reason for patching?"), NULL, FALSE);
-      if (!empty($reason)) {
-        $new_patch['reason'] = $reason;
-      }
+
+    if (!empty($reason)) {
+      $new_patch['reason'] = $reason;
     }
+
     $yaml['patches'][] = $new_patch;
     // Only switch to inline format at level 4.
     file_put_contents($yaml_file, Yaml::dump($yaml, 4, 2));
