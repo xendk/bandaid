@@ -9,6 +9,7 @@
  * dispossition should avert their eyes.
  *
  * todo/wishlist:
+ * - Unit tests.
  * - Use a system temp dir.
  * - Common function for checking that the project exists.
  * - Use the same git cache as make.
