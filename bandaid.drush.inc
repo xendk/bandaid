@@ -611,6 +611,7 @@ function _bandaid_download_file($download, $cache_duration = DRUSH_CACHE_LIFETIM
     $cache_duration = 0;
   }
 
+  // @todo don't rely on make here.
   $tmp_path = make_tmp();
   // Ensure that we aren't including the querystring when generating a filename
   // to save our download to.
