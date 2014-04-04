@@ -17,6 +17,8 @@
  *   cleaner to refactor stuff out into helper funktions, without having to have
  *   if statements to handle failure all over the place.
  * - Support local files in yaml file.
+ * - patch: When passed an URL to an issue, use that as home, and ask which
+ *   patch mentioned in the page to use.
  */
 
 require 'vendor/autoload.php';
