@@ -7,22 +7,6 @@
  * Warning: This is still much a proof of concept, with duplicate code, harcoded
  * values, missing documentation and lacking error messages. Those of a sensible
  * dispossition should avert their eyes.
- *
- * todo/wishlist:
- * - Unit tests.
- * - exif_custom has a licence file committed and some funny info stuff.
- * - Use a system temp dir.
- * - Common function for checking that the project exists.
- * - Use the same git cache as make.
- * - Support core.
- * - Use Exceptions and wrap the command functions in try/catch. Makes it
- *   cleaner to refactor stuff out into helper funktions, without having to have
- *   if statements to handle failure all over the place.
- * - Support local files in yaml file.
- * - patch: When passed an URL to an issue, use that as home, and ask which
- *   patch mentioned in the page to use.
- * - create patch command that just outputs the local patch, without changing
- *   the project.
  */
 
 require 'vendor/autoload.php';
