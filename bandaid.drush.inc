@@ -88,7 +88,7 @@ function drush_bandaid_tearoff($project) {
 
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
-  $checkout_name = 'somethingtochange';
+  $checkout_name = 'bandaid_workidir';
   $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
   if (!drush_shell_exec_interactive('git clone ssh://git@git.drupal.org/project/' . $version_info['project'] . ' ' . $checkout_name)) {
     return drush_set_error('CANNOT_CLONE');
@@ -247,7 +247,7 @@ function drush_bandaid_apply($project) {
 
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
-  $checkout_name = 'somethingtochange';
+  $checkout_name = 'bandaid_workidir';
   $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
   if (!drush_shell_exec_interactive('git clone ssh://git@git.drupal.org/project/' . $version_info['project'] . ' ' . $checkout_name)) {
     return drush_set_error('CANNOT_CLONE');
