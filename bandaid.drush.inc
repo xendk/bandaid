@@ -84,8 +84,8 @@ function drush_bandaid_tearoff($project) {
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
   $checkout_name = 'bandaid_workidir';
   $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
-  if (!drush_shell_exec_interactive('git clone ssh://git@git.drupal.org/project/' . $version_info['project'] . ' ' . $checkout_name)) {
-    return drush_set_error('CANNOT_CLONE');
+  if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
+    return FALSE;
   }
   drush_register_file_for_deletion(realpath($checkout_name));
 
@@ -243,8 +243,8 @@ function drush_bandaid_apply($project) {
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
   $checkout_name = 'bandaid_workidir';
   $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
-  if (!drush_shell_exec_interactive('git clone ssh://git@git.drupal.org/project/' . $version_info['project'] . ' ' . $checkout_name)) {
-    return drush_set_error('CANNOT_CLONE');
+  if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
+    return FALSE;
   }
   drush_register_file_for_deletion(realpath($checkout_name));
 
@@ -510,6 +510,46 @@ function _bandaid_tmpdir() {
   }
   drush_register_file_for_deletion($tmp_dir);
   return $tmp_dir;
+}
+
+/**
+ * Clone a repo, with caching.
+ *
+ * Uses the same cache as Drush make, code mostly lifted from makes
+ * implementation.
+ */
+function _bandaid_clone($name, $repo, $path) {
+  $cache = !drush_get_option('no-cache', FALSE);
+  if ($cache && ($git_cache = drush_directory_cache('git'))) {
+    $project_cache = $git_cache . '/' . $name . '-' . md5($repo);
+    // Set up a new cache, if it doesn't exist.
+    if (!file_exists($project_cache)) {
+      $command = 'git clone --mirror';
+      if (drush_get_context('DRUSH_VERBOSE')) {
+        $command .= ' --verbose --progress';
+      }
+      $command .= ' %s %s';
+      drush_shell_cd_and_exec($git_cache, $command, $repo, $project_cache);
+    }
+    else {
+      // Update the --mirror clone.
+      drush_shell_cd_and_exec($project_cache, 'git remote update');
+    }
+    $git_cache = $project_cache;
+  }
+
+  $command = 'git clone %s %s';
+  if (drush_get_context('DRUSH_VERBOSE')) {
+    $command .= ' --verbose --progress';
+  }
+  if ($cache) {
+    $command .= ' --reference ' . drush_escapeshellarg($git_cache);
+  }
+
+  if (!drush_shell_exec($command, $repo, $path)) {
+    return drush_set_error('CANNOT_CLONE', dt('Unable to clone @project from @url.', array('@project' => $name, '@url' => $url)));
+  }
+  return TRUE;
 }
 
 function _bandaid_patch($patches) {
