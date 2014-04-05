@@ -82,14 +82,13 @@ function drush_bandaid_tearoff($project) {
 
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
-  $checkout_name = 'bandaid_workidir';
-  $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
+  $checkout_dir = _bandaid_tmpdir();
   if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
     return FALSE;
   }
-  drush_register_file_for_deletion(realpath($checkout_name));
+  drush_register_file_for_deletion($checkout_dir);
 
-  chdir($checkout_name);
+  chdir($checkout_dir);
 
   $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
   $tag = $version_info['core'] . '-' . $version_info['version'];
@@ -241,14 +240,13 @@ function drush_bandaid_apply($project) {
 
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
-  $checkout_name = 'bandaid_workidir';
-  $checkout_dir = dirname($project_dir) . '/' . $checkout_name;
+  $checkout_dir = _bandaid_tmpdir();
   if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
     return FALSE;
   }
-  drush_register_file_for_deletion(realpath($checkout_name));
+  drush_register_file_for_deletion(realpath($checkout_dir));
 
-  chdir($checkout_name);
+  chdir($checkout_dir);
 
   $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
   $tag = $version_info['core'] . '-' . $version_info['version'];
