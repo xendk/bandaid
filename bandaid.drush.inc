@@ -448,6 +448,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
         file_put_contents($reason_file_name, $reason_content);
         drush_shell_exec_interactive($editor . " %s", $reason_file_name);
         $reason = explode("\n", file_get_contents($reason_file_name));
+        // @todo Drush 5 supports PHP 5.2, so this needs to be rewritten.
         $reason = array_filter($reason, function ($line) {
                     return $line[0] != '#';
                   }
