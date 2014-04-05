@@ -26,6 +26,7 @@ function bandaid_drush_command() {
     'options' => array(
       'home' => 'URL of issue.',
       'reason' => 'Reason for patch.',
+      'no-cache' => "Don't use patch download cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   );
@@ -35,6 +36,9 @@ function bandaid_drush_command() {
     'arguments' => array(
       'project' => 'Project to remove patches from.',
     ),
+    'options' => array(
+      'no-cache' => "Don't use patch download and git repo cache.",
+    ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   );
 
@@ -42,6 +46,9 @@ function bandaid_drush_command() {
     'description' => 'Apply patches.',
     'arguments' => array(
       'project' => 'Project to apply patches to.',
+    ),
+    'options' => array(
+      'no-cache' => "Don't use patch download and git repo cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
   );
