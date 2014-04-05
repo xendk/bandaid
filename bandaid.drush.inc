@@ -499,6 +499,19 @@ function _bandaid_parse_info($file) {
   return FALSE;
 }
 
+/**
+ * Creates and returns the namd of a teporary directory.
+ */
+function _bandaid_tmpdir() {
+  $tmp_dir = rtrim(drush_find_tmp(), '/');
+  $tmp_dir .= '/bandaid_tmp_' . time() . '_' . uniqid();
+  if (!drush_mkdir($tmp_dir)) {
+    return FALSE;
+  }
+  drush_register_file_for_deletion($tmp_dir);
+  return $tmp_dir;
+}
+
 function _bandaid_patch($patches) {
   $local_patches = array();
   foreach ($patches as $patch) {
@@ -595,8 +608,10 @@ function _bandaid_download_file($download, $cache_duration = DRUSH_CACHE_LIFETIM
     $cache_duration = 0;
   }
 
-  // @todo don't rely on make here.
-  $tmp_path = make_tmp();
+  $tmp_path = _bandaid_tmpdir();
+  if (!$tmp_path) {
+    return FALSE;
+  }
   // Ensure that we aren't including the querystring when generating a filename
   // to save our download to.
   $file = basename(current(explode('?', $download, 2)));
