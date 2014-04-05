@@ -14,9 +14,10 @@ class DeployotronCase extends Drush_CommandTestCase {
    */
   public static function setUpBeforeClass() {
     parent::setUpBeforeClass();
-    // Copy in the command file, so the sandbox can find it.
     $drush_dir = getenv('HOME') . '/.drush';
+    // Copy in the command file, so the sandbox can find it.
     exec('cp -r ' . escapeshellarg(dirname(dirname(__FILE__))) . ' ' . escapeshellarg($drush_dir));
+
     // Need to set up git minimally for it to work (else it wont commit).
     exec('git config --global user.email "drush@example.com"');
     exec('git config --global user.name "Bandaid Test cases"');
