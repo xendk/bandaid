@@ -51,6 +51,12 @@ class BandaidCase extends Drush_CommandTestCase {
     $this->drush('bandaid-patch', array('https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch', 'panels'), $options, NULL, $workdir);
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
 
+    // We should have a yaml file now.
+    $this->assertFileExists($workdir . '/panels');
+
+    // And that the patch was added.
+    $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch');
+
     $options = array(
       'home' => 'https://drupal.org/node/2098515',
       'reason' => 'To avoid notice.',
@@ -60,10 +66,52 @@ class BandaidCase extends Drush_CommandTestCase {
     $this->drush('bandaid-patch', array('https://drupal.org/files/issues/undefined_property_notices_fix-2098515-2.patch', 'panels'), $options, NULL, $workdir);
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
 
+    // Check that yaml file has been updated.
+    $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/undefined_property_notices_fix-2098515-2.patch');
+
+    // Add a local modification to the module file.
+    $content = file_get_contents($workdir . '/panels/panels.module');
+    $content .= "\$var = \"Local modification.\";\n";
+    file_put_contents($workdir . '/panels/panels.module', $content);
+
     // Tearoff the patches and check that they're gone.
     $this->drush('bandaid-tearoff', array('panels'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/panels'));
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
+
+    $local_patch = $workdir . '/panels.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    // We'd like to use a nowdoc instead of a heredoc, but Drush 5 supports PHP
+    // 5.2.
+    $expected_diff = <<<EOF
+diff --git a/panels.module b/panels.module
+index dcc13a6..82efc4a 100644
+--- a/panels.module
++++ b/panels.module
+@@ -1757,3 +1757,4 @@ function panels_preprocess_html(&\$vars) {
+     \$vars['classes_array'][] = check_plain(\$panel_body_css['body_classes_to_add']);
+   }
+ }
++\$var = "Local modification.";
+
+EOF;
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+    // Upgrade panels.
+    $this->drush('dl', array('panels-3.4'), array('y' => TRUE), NULL, $workdir);
+
+    // Reapply patches.
+    $this->drush('bandaid-apply', array('panels'), array(), NULL, $workdir);
+
+    // The local patch file should be gone.
+    $this->assertFalse(file_exists($local_patch));
+
+    // And the project should contain the contents of the patches.
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
+    $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
 
   }
 
@@ -76,5 +124,12 @@ class BandaidCase extends Drush_CommandTestCase {
       $this->fail("Error grepping.");
     }
     return implode("\n", $output);
+  }
+
+  /**
+   * Assert that file contains a given string.
+   */
+  protected function assertFileContains($file, $string) {
+    $this->assertContains($string, file_get_contents($file));
   }
 }
