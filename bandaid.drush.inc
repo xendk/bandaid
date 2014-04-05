@@ -501,7 +501,7 @@ function _bandaid_parse_info($file) {
 }
 
 /**
- * Creates and returns the namd of a teporary directory.
+ * Creates and returns the name of a teporary directory.
  */
 function _bandaid_tmpdir() {
   $tmp_dir = rtrim(drush_find_tmp(), '/');
