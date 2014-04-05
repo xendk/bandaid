@@ -8,7 +8,7 @@
 /**
  * Deployotron testing class.
  */
-class DeployotronCase extends Drush_CommandTestCase {
+class BandaidCase extends Drush_CommandTestCase {
   /**
    * Setup before running any tests.
    */
