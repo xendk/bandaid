@@ -28,16 +28,16 @@ class BandaidCase extends Drush_CommandTestCase {
    */
   public function setUp() {
     // Deployotron needs a site to run in.
-    if (file_exists($this->webroot())) {
-      exec("rm -rf " . $this->webroot() . '/sites/*');
+    if (!file_exists($this->webroot())) {
+      //exec("rm -rf " . $this->webroot() . '/sites/*');
+      $this->setUpDrupal(1);
     }
-    $this->setUpDrupal(1);
   }
 
   /**
    * Test the basic patch, tearoff, upgrade, apply cycle.
    */
-  public function testBasicFunctionallity() {
+  public function testBasicFunctionallity1() {
     $workdir = $this->webroot() . '/sites/all/modules';
     $this->drush('dl', array('panels-3.3'), array(), NULL, $workdir);
 
@@ -52,7 +52,7 @@ class BandaidCase extends Drush_CommandTestCase {
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
 
     // We should have a yaml file now.
-    $this->assertFileExists($workdir . '/panels');
+    $this->assertFileExists($workdir . '/panels.yml');
 
     // And that the patch was added.
     $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch');
@@ -112,6 +112,77 @@ EOF;
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
+
+  }
+
+  /**
+   * Test the basic patch, tearoff, upgrade, apply cycle.
+   *
+   * This time with a module that has LICENSE.txt committed and the d.o info
+   * line in the info file.
+   */
+ public function testBasicFunctionallity2() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
+
+    // Apply a patch, and check for success.
+    $options = array(
+      'home' => 'https://drupal.org/node/2112241',
+      'reason' => 'Allow for overriding when upoloading multiple images.',
+    );
+    $patch1_string = 'if(arg(3) == \'edit-multiple\'){return;}';
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->drush('bandaid-patch', array('https://drupal.org/files/exif_override_multiple_images-2112241-1.patch', 'exif_custom'), $options, NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+
+    // We should have a yaml file now.
+    $this->assertFileExists($workdir . '/exif_custom.yml');
+
+    // And that the patch was added.
+    $this->assertFileContains($workdir . '/exif_custom.yml', 'https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
+
+    // Add a local modification to the module file (we're prepending as they're
+    // happening too much at the end of the file).
+    $content = file_get_contents($workdir . '/exif_custom/exif_custom.module');
+    $content = "\$var = \"Local modification.\";\n" . $content;
+    file_put_contents($workdir . '/exif_custom/exif_custom.module', $content);
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    $local_patch = $workdir . '/exif_custom.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    // We'd like to use a nowdoc instead of a heredoc, but Drush 5 supports PHP
+    // 5.2.
+    $expected_diff = <<<EOF
+diff --git a/exif_custom.module b/exif_custom.module
+index c2bdee6..b889d52 100644
+--- a/exif_custom.module
++++ b/exif_custom.module
+@@ -1,3 +1,4 @@
++\$var = "Local modification.";
+ <?php
+
+ /**
+
+EOF;
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+    // Upgrade panels.
+    $this->drush('dl', array('exif_custom-1.14'), array('y' => TRUE), NULL, $workdir);
+
+    // Reapply patches.
+    $this->drush('bandaid-apply', array('exif_custom'), array(), NULL, $workdir);
+
+    // The local patch file should be gone.
+    $this->assertFalse(file_exists($local_patch));
+
+    // And the project should contain the contents of the patches.
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
 
   }
 
