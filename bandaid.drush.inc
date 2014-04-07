@@ -668,13 +668,21 @@ function _bandaid_fix_info_files($dir) {
   $info_files = drush_scan_directory($dir, '/.*\.info$/');
   foreach ($info_files as $info_file) {
     $content = file_get_contents($info_file->filename);
-    // Yeah, ugly, but d.o adds one newline, while drush adds two. And don't get
-    // me started on the one versus two spaces or that d.o seems to be random in
-    // its capitalization. At least we know we follow the d.o format ourselves.
-    $content = preg_replace('/\\n;\s+Information added by ([Dd]rupal.org|bandaid).*$/s', '', $content);
-    $content = preg_replace('/\\n\\n;\s+Information added by drush.*$/s', '', $content);
-    if (!file_put_contents($info_file->filename, $content)) {
-      return FALSE;
+    $lines = explode("\n", $content);
+    for ($i = count($lines) - 1; $i > -1; $i--) {
+      // The \s+ gobbles up both drushs 2 spaces and d.o and our one. Seems d.o
+      // fixed their capitalization at some point.
+      if (preg_match('/;\s+Information added by ([Dd]rupal.org|bandaid|drush).*$/', $lines[$i], $matches)) {
+        // Drush adds two newlines in front, instead of the one d.o and we do.
+        $strip_from = $matches[1] == 'drush' ? $i - 1 : $i;
+        break;
+      }
+    }
+    if ($i) {
+      $lines = array_slice($lines, 0, $i);
+      if (!file_put_contents($info_file->filename, implode("\n", $lines))) {
+        return FALSE;
+      }
     }
   }
   return TRUE;
