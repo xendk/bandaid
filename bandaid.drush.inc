@@ -181,24 +181,14 @@ function drush_bandaid_patch($patch, $project = NULL) {
 }
 
 function drush_bandaid_tearoff($project) {
-  $project_dir = realpath(drush_cwd() . '/' . $project);
-  $yaml_file = $project_dir . '.yml';
-  $info_file = $project_dir . '/' . $project . '.info';
-  $local_patch_file = $project_dir . '.local.patch';
-
-  chdir(dirname($project_dir));
-  $project = basename($project_dir);
-
-  if (!file_exists($info_file)) {
-    return drush_set_error('NO_INFO_FILE');
-  }
-
-  $version_info = _bandaid_parse_info($info_file);
-  if (!$version_info) {
+  $project = _bandaid_validate_project($project);
+  if (!$project) {
     return FALSE;
   }
 
-  if (file_exists($local_patch_file)) {
+  chdir(dirname($project['dir']));
+
+  if ($projcet['local_patch']) {
     drush_log(dt('Local patch file exists, it will be overwritten.'), 'warning');
     if (!drush_confirm('Continue anyway?')) {
       return drush_user_abort();
@@ -206,25 +196,23 @@ function drush_bandaid_tearoff($project) {
 
   }
 
-  if (file_exists($yaml_file)) {
-    $yaml = Yaml::parse($yaml_file);
-    $patches = $yaml['patches'];
-  }
-
   // Clone repo.
-  drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
+  drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
+  if (!_bandaid_clone($project['name'], 'ssh://git@git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
     return FALSE;
   }
   drush_register_file_for_deletion($checkout_dir);
 
   chdir($checkout_dir);
 
-  $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
-  $tag = $version_info['core'] . '-' . $version_info['version'];
-  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
-  if ($version_info['commits']) {
+  $branch = $project['version_info']['core'] . '-' .
+    $project['version_info']['major'] . '.x';
+  $tag = $project['version_info']['core'] . '-' .
+    $project['version_info']['version'];
+  $checkout_ref = $project['version_info']['core'] . '-' .
+    $project['version_info']['version'];
+  if ($project['version_info']['commits']) {
     // Get history from base version to head.
     if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
       drush_print_r(drush_shell_exec_output());
@@ -233,7 +221,7 @@ function drush_bandaid_tearoff($project) {
     // Flip the order so we have the oldest commit first.
     $commits = array_reverse(drush_shell_exec_output());
     // Pick out the nth commit, and split the line.
-    list($checkout_ref, $description) = explode(' ', $commits[$version_info['commits'] - 1], 2);
+    list($checkout_ref, $description) = explode(' ', $commits[$project['version_info']['commits'] - 1], 2);
   }
 
   // Checkout base version.
@@ -263,12 +251,12 @@ function drush_bandaid_tearoff($project) {
   }
 
   // Apply patches to patch branch.
-  if (!empty($patches)) {
+  if (!empty($project['yaml']['patches'])) {
     if (!drush_shell_exec('git checkout bandaid_patch')) {
       return drush_set_error('CANNOT_CHECKOUT_BRANCH');
     }
 
-    if (!_bandaid_patch($patches)) {
+    if (!_bandaid_patch($project['yaml']['patches'])) {
       return;
     }
   }
@@ -281,7 +269,7 @@ function drush_bandaid_tearoff($project) {
   foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
     drush_delete_dir($file->filename);
   }
-  drush_copy_dir($project_dir, $checkout_dir, FILE_EXISTS_MERGE);
+  drush_copy_dir($project['dir'], $checkout_dir, FILE_EXISTS_MERGE);
   // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
   // not polute the diff here, but add it again when creating the new project
   // from git, in order not to polute the diff in the site. Unless it was
@@ -315,7 +303,7 @@ function drush_bandaid_tearoff($project) {
   if (!empty($patch)) {
     // Due to going through drush_shell_exec_output(), we lost the trailing
     // newline.
-    if (!file_put_contents($local_patch_file, $patch . "\n")) {
+    if (!file_put_contents($project['local_patch_file'], $patch . "\n")) {
       return drush_set_error('CANNOT_CREATE_PATCH');
     }
   }
@@ -334,21 +322,25 @@ function drush_bandaid_tearoff($project) {
   }
 
   // Fiddle with info files like d.o and drush.
-  $version = $version_info['core'] . '-' . $version_info['version'] . (!empty($version_info['commits']) ? '+' . $version_info['commits'] . '-dev' : '');
-  _bandaid_inject_info_file_metadata($checkout_dir, $project, $version);
+  $version = $project['version_info']['core'] . '-' .
+    $project['version_info']['version'] .
+    (!empty($project['version_info']['commits']) ?
+      '+' . $project['version_info']['commits'] . '-dev' :
+      '');
+  _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
-  if (!drush_move_dir($project_dir, $project_dir . '.old')) {
+  if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
     return FALSE;
   }
 
   if (!drush_delete_dir('.git')) {
     return drush_set_error('CANNOT_DELETE_GIT');
   }
-  chdir(dirname($project_dir));
-  if (!drush_move_dir($checkout_dir, $project_dir)) {
+  chdir(dirname($project['dir']));
+  if (!drush_move_dir($checkout_dir, $project['dir'])) {
     return FALSE;
   }
-  drush_register_file_for_deletion($project_dir . '.old');
+  drush_register_file_for_deletion($project['dir'] . '.old');
 
   /*
    *clone repo.
@@ -364,42 +356,30 @@ function drush_bandaid_tearoff($project) {
 }
 
 function drush_bandaid_apply($project) {
-  $project_dir = realpath(drush_cwd() . '/' . $project);
-  $yaml_file = $project_dir . '.yml';
-  $info_file = $project_dir . '/' . $project . '.info';
-  $local_patch_file = $project_dir . '.local.patch';
-
-  chdir(dirname($project_dir));
-  $project = basename($project_dir);
-
-  if (!file_exists($info_file)) {
-    return drush_set_error('NO_INFO_FILE');
-  }
-
-  $version_info = _bandaid_parse_info($info_file);
-  if (!$version_info) {
+  $project = _bandaid_validate_project($project);
+  if (!$project) {
     return FALSE;
   }
 
-  if (file_exists($yaml_file)) {
-    $yaml = Yaml::parse($yaml_file);
-    $patches = $yaml['patches'];
-  }
+  chdir(dirname($project['dir']));
 
   // Clone repo.
-  drush_log(dt('Cloning @name.', array('@name' => $project)), 'status');
+  drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  if (!_bandaid_clone($project, 'ssh://git@git.drupal.org/project/' . $version_info['project'], $checkout_dir)) {
+  if (!_bandaid_clone($project['name'], 'ssh://git@git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
     return FALSE;
   }
   drush_register_file_for_deletion(realpath($checkout_dir));
 
   chdir($checkout_dir);
 
-  $branch = $version_info['core'] . '-' . $version_info['major'] . '.x';
-  $tag = $version_info['core'] . '-' . $version_info['version'];
-  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
-  if ($version_info['commits']) {
+  $branch = $project['version_info']['core'] . '-' .
+    $project['version_info']['major'] . '.x';
+  $tag = $project['version_info']['core'] . '-' .
+    $project['version_info']['version'];
+  $checkout_ref = $project['version_info']['core'] . '-' .
+    $project['version_info']['version'];
+  if ($project['version_info']['commits']) {
     // Get history from base version to head.
     if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
       drush_print_r(drush_shell_exec_output());
@@ -440,7 +420,7 @@ function drush_bandaid_apply($project) {
   foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
     drush_delete_dir($file->filename);
   }
-  drush_copy_dir($project_dir, $checkout_dir, FILE_EXISTS_MERGE);
+  drush_copy_dir($project['dir'], $checkout_dir, FILE_EXISTS_MERGE);
 
   // Commit local version.
   if (!drush_shell_exec('git add --all .')) {
@@ -482,33 +462,70 @@ function drush_bandaid_apply($project) {
   }
 
   // Apply patches to local branch.
-  if (!empty($patches)) {
-    if (!_bandaid_patch($patches)) {
+  if (!empty($project['yaml']['patches'])) {
+    if (!_bandaid_patch($project['yaml']['patches'])) {
       return;
     }
   }
 
   // Apply a local patch.
-  if (file_exists($local_patch_file)) {
-    if (!drush_shell_exec('GIT_DIR=. git apply -p1 %s --verbose', $local_patch_file)) {
+  if ($project['local_patch']) {
+    if (!drush_shell_exec('GIT_DIR=. git apply -p1 %s --verbose', $project['local_patch_file'])) {
       return drush_set_error('CANNOT_PATCH');
     }
-    drush_log(dt('Patched with @filename.', array('@filename' => basename($local_patch_file))), 'ok');
-    unlink($local_patch_file);
+    drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
+    unlink($project['local_patch_file']);
   }
 
-  if (!drush_move_dir($project_dir, $project_dir . '.old')) {
+  if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
     return FALSE;
   }
 
   if (!drush_delete_dir('.git')) {
     return drush_set_error('CANNOT_DELETE_GIT');
   }
-  chdir(dirname($project_dir));
-  if (!drush_move_dir($checkout_dir, $project_dir)) {
+  chdir(dirname($project['dir']));
+  if (!drush_move_dir($checkout_dir, $project['dir'])) {
     return FALSE;
   }
-  drush_register_file_for_deletion($project_dir . '.old');
+  drush_register_file_for_deletion($project['dir'] . '.old');
+}
+
+/**
+ * Validate project.
+ *
+ * Ensure we can find it, parse the info file, check if there's any local patch
+ * file, and load any found yaml file.
+ */
+function _bandaid_validate_project($project_name) {
+  $project = array(
+    'name' => basename($project_name),
+    'dir' => realpath(drush_cwd() . '/' . $project_name),
+    'version_info' => NULL,
+    'local_patch' => NULL,
+    'yaml' => NULL,
+  );
+  $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+
+  if (!file_exists($info_file)) {
+    return drush_set_error('NO_INFO_FILE');
+  }
+
+  $project['version_info'] = _bandaid_parse_info($info_file);
+  if (!$project['version_info']) {
+    return FALSE;
+  }
+
+  $project['local_patch_file'] = $project['dir'] . '.local.patch';
+  if (file_exists($project['local_patch_file'])) {
+    $project['local_patch'] = TRUE;
+  }
+
+  if (file_exists($project['dir'] . '.yml')) {
+    $project['yaml'] = Yaml::parse($project['dir'] . '.yml');
+  }
+
+  return $project;
 }
 
 function _bandaid_parse_info($file) {
