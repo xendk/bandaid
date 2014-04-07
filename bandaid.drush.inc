@@ -56,6 +56,130 @@ function bandaid_drush_command() {
   return $items;
 }
 
+function drush_bandaid_patch($patch, $project = NULL) {
+  if (!$project) {
+    $project_dir = realpath(drush_cwd());
+    $project = basename($project_dir);
+  }
+  else {
+    $project_dir = realpath(drush_cwd() . '/' . $project);
+  }
+  $yaml_file = $project_dir . '.yml';
+
+  chdir($project_dir);
+  $project = basename($project_dir);
+
+  if (file_exists($yaml_file)) {
+    $yaml = Yaml::parse($yaml_file);
+  }
+  else {
+    $yaml = array(
+      'patches' => array(),
+    );
+  }
+
+  // @todo this was wholesomely copied and adjusted from _bandaid_patch, need to
+  // refactor things together again.
+  if ($filename = _bandaid_download_file($patch)) {
+    $patched = FALSE;
+    $output = '';
+    // Test each patch style; -p1 is the default with git. See
+    // http://drupal.org/node/1054616
+    $patch_levels = array('-p1', '-p0');
+    foreach ($patch_levels as $patch_level) {
+      $checked = drush_shell_exec('GIT_DIR=. git apply --check %s %s --verbose', $patch_level, $filename);
+      if ($checked) {
+        // Apply the first successful style.
+        $patched = drush_shell_exec('GIT_DIR=. git apply %s %s --verbose', $patch_level, $filename);
+        break;
+      }
+    }
+
+    // In some rare cases, git will fail to apply a patch, fallback to using
+    // the 'patch' command.
+    if (!$patched) {
+      foreach ($patch_levels as $patch_level) {
+        // --no-backup-if-mismatch here is a hack that fixes some
+        // differences between how patch works on windows and unix.
+        if ($patched = drush_shell_exec("patch %s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
+          break;
+        }
+      }
+    }
+
+    if ($output = drush_shell_exec_output()) {
+      // Log any command output, visible only in --verbose or --debug mode.
+      drush_log(implode("\n", $output));
+    }
+  }
+  else {
+    return drush_set_error(CANNOT_DOWNLOAD_PATCH);
+  }
+
+  if ($patched) {
+    drush_log(dt('Successfully patched.'));
+    $new_patch = array(
+      'patch' => $patch,
+    );
+
+    $home = drush_get_option('home', NULL);
+    if (is_null($home)) {
+      $home = drush_prompt(dt("Issue (or other web page) of patch?"), NULL, FALSE);
+    }
+    if (!empty($home)) {
+      $new_patch['home'] = $home;
+    }
+
+    $reason = drush_get_option('reason', NULL);
+    if (is_null($reason)) {
+      // Find an editor.
+      foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
+        $editor = getenv($var);
+        drush_print($var . ':' . $editor);
+        if ($editor) {
+          break;
+        }
+      }
+
+      if ($editor) {
+        $reason_file_name = drush_tempnam('bandaid_');
+        $reason_content = "
+
+# Patch: $patch" . (!empty($home) ? "\n# Home: " . $home : '') . "
+# Enter your explanation for adding this patch above.
+# Lines staring with # will be removed";
+        file_put_contents($reason_file_name, $reason_content);
+        drush_shell_exec_interactive($editor . " %s", $reason_file_name);
+        $reason = explode("\n", file_get_contents($reason_file_name));
+        // @todo Drush 5 supports PHP 5.2, so this needs to be rewritten.
+        $reason = array_filter($reason, function ($line) {
+                    return $line[0] != '#';
+                  }
+        );
+        $reason = trim(implode("\n", $reason));
+      }
+      else {
+        // Fall back to using drush_prompt.
+        $reason = drush_prompt(dt("Reason for patching?"), NULL, FALSE);
+        if (!empty($reason)) {
+          $new_patch['reason'] = $reason;
+        }
+      }
+    }
+
+    if (!empty($reason)) {
+      $new_patch['reason'] = $reason;
+    }
+
+    $yaml['patches'][] = $new_patch;
+    // Only switch to inline format at level 4.
+    file_put_contents($yaml_file, Yaml::dump($yaml, 4, 2));
+  }
+  else {
+    drush_set_error(PATCHING_FAILED);
+  }
+}
+
 function drush_bandaid_tearoff($project) {
   $project_dir = realpath(drush_cwd() . '/' . $project);
   $yaml_file = $project_dir . '.yml';
@@ -385,130 +509,6 @@ function drush_bandaid_apply($project) {
     return FALSE;
   }
   drush_register_file_for_deletion($project_dir . '.old');
-}
-
-function drush_bandaid_patch($patch, $project = NULL) {
-  if (!$project) {
-    $project_dir = realpath(drush_cwd());
-    $project = basename($project_dir);
-  }
-  else {
-    $project_dir = realpath(drush_cwd() . '/' . $project);
-  }
-  $yaml_file = $project_dir . '.yml';
-
-  chdir($project_dir);
-  $project = basename($project_dir);
-
-  if (file_exists($yaml_file)) {
-    $yaml = Yaml::parse($yaml_file);
-  }
-  else {
-    $yaml = array(
-      'patches' => array(),
-    );
-  }
-
-  // @todo this was wholesomely copied and adjusted from _bandaid_patch, need to
-  // refactor things together again.
-  if ($filename = _bandaid_download_file($patch)) {
-    $patched = FALSE;
-    $output = '';
-    // Test each patch style; -p1 is the default with git. See
-    // http://drupal.org/node/1054616
-    $patch_levels = array('-p1', '-p0');
-    foreach ($patch_levels as $patch_level) {
-      $checked = drush_shell_exec('GIT_DIR=. git apply --check %s %s --verbose', $patch_level, $filename);
-      if ($checked) {
-        // Apply the first successful style.
-        $patched = drush_shell_exec('GIT_DIR=. git apply %s %s --verbose', $patch_level, $filename);
-        break;
-      }
-    }
-
-    // In some rare cases, git will fail to apply a patch, fallback to using
-    // the 'patch' command.
-    if (!$patched) {
-      foreach ($patch_levels as $patch_level) {
-        // --no-backup-if-mismatch here is a hack that fixes some
-        // differences between how patch works on windows and unix.
-        if ($patched = drush_shell_exec("patch %s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
-          break;
-        }
-      }
-    }
-
-    if ($output = drush_shell_exec_output()) {
-      // Log any command output, visible only in --verbose or --debug mode.
-      drush_log(implode("\n", $output));
-    }
-  }
-  else {
-    return drush_set_error(CANNOT_DOWNLOAD_PATCH);
-  }
-
-  if ($patched) {
-    drush_log(dt('Successfully patched.'));
-    $new_patch = array(
-      'patch' => $patch,
-    );
-
-    $home = drush_get_option('home', NULL);
-    if (is_null($home)) {
-      $home = drush_prompt(dt("Issue (or other web page) of patch?"), NULL, FALSE);
-    }
-    if (!empty($home)) {
-      $new_patch['home'] = $home;
-    }
-
-    $reason = drush_get_option('reason', NULL);
-    if (is_null($reason)) {
-      // Find an editor.
-      foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
-        $editor = getenv($var);
-        drush_print($var . ':' . $editor);
-        if ($editor) {
-          break;
-        }
-      }
-
-      if ($editor) {
-        $reason_file_name = drush_tempnam('bandaid_');
-        $reason_content = "
-
-# Patch: $patch" . (!empty($home) ? "\n# Home: " . $home : '') . "
-# Enter your explanation for adding this patch above.
-# Lines staring with # will be removed";
-        file_put_contents($reason_file_name, $reason_content);
-        drush_shell_exec_interactive($editor . " %s", $reason_file_name);
-        $reason = explode("\n", file_get_contents($reason_file_name));
-        // @todo Drush 5 supports PHP 5.2, so this needs to be rewritten.
-        $reason = array_filter($reason, function ($line) {
-                    return $line[0] != '#';
-                  }
-        );
-        $reason = trim(implode("\n", $reason));
-      }
-      else {
-        // Fall back to using drush_prompt.
-        $reason = drush_prompt(dt("Reason for patching?"), NULL, FALSE);
-        if (!empty($reason)) {
-          $new_patch['reason'] = $reason;
-        }
-      }
-    }
-
-    if (!empty($reason)) {
-      $new_patch['reason'] = $reason;
-    }
-
-    $yaml['patches'][] = $new_patch;
-    // Only switch to inline format at level 4.
-    file_put_contents($yaml_file, Yaml::dump($yaml, 4, 2));
-  }
-  else {
-    drush_set_error(PATCHING_FAILED);
-  }
 }
 
 function _bandaid_parse_info($file) {
