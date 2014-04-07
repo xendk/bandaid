@@ -194,7 +194,7 @@ function drush_bandaid_tearoff($project) {
 
   // Fiddle with info files like d.o and drush.
   $version = $version_info['core'] . '-' . $version_info['version'] . (!empty($version_info['commits']) ? '+' . $version_info['commits'] . '-dev' : '');
-  _bandaid__inject_info_file_metadata($checkout_dir, $project, $version);
+  _bandaid_inject_info_file_metadata($checkout_dir, $project, $version);
 
   if (!drush_move_dir($project_dir, $project_dir . '.old')) {
     return FALSE;
@@ -696,7 +696,7 @@ function _bandaid_fix_info_files($dir) {
  * @return boolean
  *   TRUE on success, FALSE on any failures appending data to .info files.
  */
-function _bandaid__inject_info_file_metadata($project_dir, $project_name, $version) {
+function _bandaid_inject_info_file_metadata($project_dir, $project_name, $version) {
   $info_files = drush_scan_directory($project_dir, '/.*\.info$/');
   if (!empty($info_files)) {
     $info = "\n; Information added by bandaid on " . date('Y-m-d') . "\n";
