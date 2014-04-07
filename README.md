@@ -32,7 +32,7 @@ directory. You can edit the yaml file if the need be, but be aware
 that it's used by the following commands.
 
 If you don't like the interactive questions, these can be supplied
-with the --home and --reason options.
+with the `--home` and `--reason` options.
 
 #### Failure mode ####
 
