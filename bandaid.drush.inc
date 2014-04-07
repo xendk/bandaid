@@ -121,6 +121,13 @@ function drush_bandaid_tearoff($project) {
     return drush_set_error('CANNOT_CHECKOUT_BASE');
   }
 
+  // Some have erranously committed LICENSE.txt. Note if that's the case for
+  // later.
+  $license_exists = file_exists('LICENSE.txt');
+  if ($license_exists) {
+    $license_perms = fileperms('LICENSE.txt');
+  }
+
   // Create patch branch.
   if (!drush_shell_exec('git branch bandaid_patch')) {
     return drush_set_error('CANNOT_BRANCH');
@@ -153,11 +160,18 @@ function drush_bandaid_tearoff($project) {
   drush_copy_dir($project_dir, $checkout_dir, FILE_EXISTS_MERGE);
   // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
   // not polute the diff here, but add it again when creating the new project
-  // from git, in order not to polute the diff in the site.
+  // from git, in order not to polute the diff in the site. Unless it was
+  // committed to git, in case we just carry over the file permissions, as d.o
+  // might still mess with those.
   if (file_exists('LICENSE.txt')) {
-    $licence = file_get_contents('LICENSE.txt');
-    $licence_perms = fileperms('LICENSE.txt');
-    unlink('LICENSE.txt');
+    if (!$license_exists) {
+      $license_perms = fileperms('LICENSE.txt');
+      $license = file_get_contents('LICENSE.txt');
+      unlink('LICENSE.txt');
+    }
+    else {
+      chmod('LICENSE.txt', $license_perms);
+    }
   }
   if (!_bandaid_fix_info_files($checkout_dir)) {
     return drush_set_error('INFO_FILE_ERROR');
@@ -186,10 +200,13 @@ function drush_bandaid_tearoff($project) {
   if (!drush_shell_exec('git checkout ' . $checkout_ref)) {
     return drush_set_error('CANNOT_CHECKOUT_BASE');
   }
-  // Recreate LICENSE.txt.
-  if (!empty($licence)) {
-    file_put_contents('LICENSE.txt', $licence);
-    chmod('LICENSE.txt', $licence_perms);
+
+  // Recreate LICENSE.txt if needed.
+  if (!empty($license)) {
+    file_put_contents('LICENSE.txt', $license);
+  }
+  if (!empty($license_perms)) {
+    chmod('LICENSE.txt', $license_perms);
   }
 
   // Fiddle with info files like d.o and drush.
@@ -279,6 +296,13 @@ function drush_bandaid_apply($project) {
     return drush_set_error('CANNOT_CHECKOUT_BASE');
   }
 
+  // Some have erranously committed LICENSE.txt. Note if that's the case for
+  // later.
+  $license_exists = file_exists('LICENSE.txt');
+  if ($license_exists) {
+    $license_perms = fileperms('LICENSE.txt');
+  }
+
   // Create local branch.
   if (!drush_shell_exec('git branch bandaid_local')) {
     return drush_set_error('CANNOT_BRANCH');
@@ -303,9 +327,14 @@ function drush_bandaid_apply($project) {
   }
 
   // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
-  // not polute the diff.
+  // not polute the diff, unless it *was* committed.
   if (file_exists('LICENSE.txt')) {
-    unlink('LICENSE.txt');
+    if (!$license_exists) {
+      unlink('LICENSE.txt');
+    }
+    else {
+      chmod('LICENSE.txt', $license_perms);
+    }
   }
   if (!_bandaid_fix_info_files($checkout_dir)) {
     return drush_set_error('INFO_FILE_ERROR');
