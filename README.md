@@ -47,7 +47,7 @@ Example:
 
     drush bandaid-tearoff panels
 
-Will reverse the applied patches, and create a <module>.local.patch
+Will reverse the applied patches, and create a `<module>.local.patch`
 file that contains any further local modifications.
 
 You can now use `drush dl` to upgrade the module. 
@@ -73,7 +73,7 @@ Example:
     drush bandaid-apply panels
 
 Will reapply the patches from the yaml file, and lastly any
-<module>.local.patch and, if successful, delete the local patch file.
+`<module>.local.patch` and, if successful, delete the local patch file.
 
 #### Failure mode ####
 
