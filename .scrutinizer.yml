@@ -24,3 +24,6 @@ tools:
   # external_code_coverage:
   #   # Wait up to thirty minutes for code coverage.
   #   timeout: 1800
+before_commands:
+  # Remove vendor code, we don't want to analyze that.
+  - rm -rf vendor
