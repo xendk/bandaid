@@ -162,6 +162,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
     $reason = drush_get_option('reason', NULL);
     if (is_null($reason)) {
       // Find an editor.
+      // @todo use drush_get_editor() instead.
       foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
         $editor = getenv($var);
         drush_print($var . ':' . $editor);
