@@ -17,6 +17,7 @@ class BandaidCase extends Drush_CommandTestCase {
     $drush_dir = getenv('HOME') . '/.drush';
     // Copy in the command file, so the sandbox can find it.
     symlink(dirname(dirname(__FILE__)) . '/bandaid.drush.inc', getenv('HOME') . '/.drush/bandaid.drush.inc');
+    symlink(dirname(dirname(__FILE__)) . '/bandaid.inc', getenv('HOME') . '/.drush/bandaid.inc');
 
     // Need to set up git minimally for it to work (else it wont commit).
     exec('git config --global user.email "drush@example.com"');

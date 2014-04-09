@@ -10,44 +10,12 @@
  */
 
 require 'vendor/autoload.php';
+require 'bandaid.inc';
 
+use Bandaid\Git;
+use Bandaid\BandaidError;
 use Symfony\Component\Yaml\Yaml;
-
 define('BANDAID_MINIMUM_PHP', '5.3.0');
-
-/**
- * Bandaid error class.
- */
-class BandaidError extends Exception {
-  protected $error;
-
-  /**
-   * Constuctor.
-   */
-  public function __construct($error, $message = '') {
-    $this->errro = $error;
-    parent::__contstruct($message);
-  }
-
-  /**
-   * Set error.
-   *
-   * Calls drush_set_error().
-   */
-  public function drushSetError() {
-    if ($previous == $this->getPrevious() && ($previous instanceof BandaidError)) {
-      $previous->drushSetError();
-    }
-    // The error has already been set.
-    if ($this->error == 'drush_set_error') {
-      return FALSE;
-    }
-    if (!empty($this->message)) {
-      return drush_set_error($this->error, $this->message);
-    }
-    return drush_set_error($this->error);
-  }
-}
 
 /**
  * Implements hook_drush_command().
@@ -116,12 +84,12 @@ function drush_bandaid_patch($patch, $project = NULL) {
     $output = '';
     // Test each patch style; -p1 is the default with git. See
     // http://drupal.org/node/1054616
-    $patch_levels = array('-p1', '-p0');
+    $patch_levels = array(1, 0);
     foreach ($patch_levels as $patch_level) {
-      $checked = drush_shell_exec('GIT_DIR=. git apply --check %s %s --verbose', $patch_level, $filename);
+      $checked = Git::applyCheck($filename, $patch_level);
       if ($checked) {
         // Apply the first successful style.
-        $patched = drush_shell_exec('GIT_DIR=. git apply %s %s --verbose', $patch_level, $filename);
+        $patched = Git::apply($patch_level, $filename);
         break;
       }
     }
@@ -132,7 +100,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
       foreach ($patch_levels as $patch_level) {
         // --no-backup-if-mismatch here is a hack that fixes some
         // differences between how patch works on windows and unix.
-        if ($patched = drush_shell_exec("patch %s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
+        if ($patched = drush_shell_exec("patch -p%s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
           break;
         }
       }
@@ -244,13 +212,9 @@ function drush_bandaid_tearoff($project) {
     $checkout_ref = $project['version_info']['core'] . '-' .
       $project['version_info']['version'];
     if ($project['version_info']['commits']) {
-      // Get history from base version to head.
-      if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
-        drush_print_r(drush_shell_exec_output());
-        throw new BandaidError('CANNOT_GET_HISTORY');
-      }
-      // Flip the order so we have the oldest commit first.
-      $commits = array_reverse(drush_shell_exec_output());
+      // Get history from base version to head.  Flip the order so we have the
+      // oldest commit first.
+      $commits = array_reverse(Git::onelineLog($tag, $branch));
       // Pick out the nth commit, and split the line.
       list($checkout_ref, $description) = explode(' ', $commits[$project['version_info']['commits'] - 1], 2);
     }
@@ -260,9 +224,7 @@ function drush_bandaid_tearoff($project) {
     if (!empty($description)) {
       drush_log(dt('Commit message: @desc.', array('@desc' => $description)), 'status');
     }
-    if (!drush_shell_exec('git checkout ' . $checkout_ref)) {
-      throw new BandaidError('CANNOT_CHECKOUT_BASE');
-    }
+    Git::checkout($checkout_ref);
 
     // Some have erranously committed LICENSE.txt. Note if that's the case for
     // later.
@@ -272,28 +234,20 @@ function drush_bandaid_tearoff($project) {
     }
 
     // Create patch branch.
-    if (!drush_shell_exec('git branch bandaid_patch')) {
-      throw new BandaidError('CANNOT_BRANCH');
-    }
+    Git::branch('bandaid_patch');
 
     // Create local branch.
-    if (!drush_shell_exec('git branch bandaid_local')) {
-      throw new BandaidError('CANNOT_BRANCH');
-    }
+    Git::branch('bandaid_local');
 
     // Apply patches to patch branch.
     if (!empty($project['yaml']['patches'])) {
-      if (!drush_shell_exec('git checkout bandaid_patch')) {
-        throw new BandaidError('CANNOT_CHECKOUT_BRANCH');
-      }
-
+      Git::checkout('bandaid_patch');
       _bandaid_patch($project['yaml']['patches']);
     }
 
     // Copy the local project to the local branch.
-    if (!drush_shell_exec('git checkout bandaid_local')) {
-      throw new BandaidError('CANNOT_CHECKOUT_BRANCH');
-    }
+    Git::checkout('bandaid_local');
+
     // Clear out the files in the repo and copy in the files from the project.
     foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
       drush_delete_dir($file->filename);
@@ -316,30 +270,19 @@ function drush_bandaid_tearoff($project) {
     }
     _bandaid_fix_info_files($checkout_dir);
 
-    if (!drush_shell_exec('git add --all .')) {
-      throw new BandaidError('CANNOT_ADD');
-    }
-    if (!drush_shell_exec('git commit -m ' . drush_escapeshellarg("Committing local."))) {
-      throw new BandaidError('CANNOT_COMMIT');
-    }
+    Git::add('.', TRUE);
+    Git::commit("Committing local.");
 
     // Create local patch file.
-    if (!drush_shell_exec('git diff bandaid_patch bandaid_local')) {
-      throw new BandaidError('CANNOT_DIFF');
-    }
-    $patch = implode("\n", drush_shell_exec_output());
+    $patch = Git::diff('bandaid_patch', 'bandaid_local');
     if (!empty($patch)) {
-      // Due to going through drush_shell_exec_output(), we lost the trailing
-      // newline.
-      if (!file_put_contents($project['local_patch_file'], $patch . "\n")) {
+      if (!file_put_contents($project['local_patch_file'], $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH');
       }
     }
 
     // Return to a pristine checkout.
-    if (!drush_shell_exec('git checkout ' . $checkout_ref)) {
-      throw new BandaidError('CANNOT_CHECKOUT_BASE');
-    }
+    Git::checkout($checkout_ref);
 
     // Recreate LICENSE.txt if needed.
     if (!empty($license)) {
@@ -404,13 +347,9 @@ function drush_bandaid_apply($project) {
     $checkout_ref = $project['version_info']['core'] . '-' .
       $project['version_info']['version'];
     if ($project['version_info']['commits']) {
-      // Get history from base version to head.
-      if (!drush_shell_exec('git log --format=oneline ' . $tag . '..' . $branch)) {
-        drush_print_r(drush_shell_exec_output());
-        throw new BandaidError('CANNOT_GET_HISTORY');
-      }
-      // Flip the order so we have the oldest commit first.
-      $commits = array_reverse(drush_shell_exec_output());
+      // Get history from base version to head.  Flip the order so we have the
+      // oldest commit first.
+      $commits = array_reverse(Git::onelineLog($tag, $branch));
       // Pick out the nth commit, and split the line.
       list($checkout_ref, $description) = explode(' ', $commits[$version_info['commits'] - 1], 2);
     }
@@ -420,9 +359,7 @@ function drush_bandaid_apply($project) {
     if (!empty($description)) {
       drush_log(dt('Commit message: @desc.', array('@desc' => $description)), 'status');
     }
-    if (!drush_shell_exec('git checkout ' . $checkout_ref)) {
-      throw new BandaidError('CANNOT_CHECKOUT_BASE');
-    }
+    Git::checkout($checkout_ref);
 
     // Some have erranously committed LICENSE.txt. Note if that's the case for
     // later.
@@ -432,14 +369,11 @@ function drush_bandaid_apply($project) {
     }
 
     // Create local branch.
-    if (!drush_shell_exec('git branch bandaid_local')) {
-      throw new BandaidError('CANNOT_BRANCH');
-    }
+    Git::branch('bandaid_local');
 
     // Copy the local project to the local branch.
-    if (!drush_shell_exec('git checkout bandaid_local')) {
-      throw new BandaidError('CANNOT_CHECKOUT_BRANCH');
-    }
+    Git::checkout('bandaid_local');
+
     // Clear out the files in the repo and copy in the files from the project.
     foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
       drush_delete_dir($file->filename);
@@ -447,12 +381,8 @@ function drush_bandaid_apply($project) {
     drush_copy_dir($project['dir'], $checkout_dir, FILE_EXISTS_MERGE);
 
     // Commit local version.
-    if (!drush_shell_exec('git add --all .')) {
-      throw new BandaidError('CANNOT_ADD');
-    }
-    if (!drush_shell_exec('git commit -m ' . drush_escapeshellarg("Committing local."))) {
-      throw new BandaidError('CANNOT_COMMIT');
-    }
+    Git::add('.', TRUE);
+    Git::commit("Committing local.");
 
     // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
     // not polute the diff, unless it *was* committed.
@@ -467,10 +397,7 @@ function drush_bandaid_apply($project) {
     _bandaid_fix_info_files($checkout_dir);
 
     // Create a diff to show the user.
-    if (!drush_shell_exec('git diff ' . $checkout_ref)) {
-      throw new BandaidError('CANNOT_DIFF');
-    }
-    $patch = implode("\n", drush_shell_exec_output());
+    $patch = Git::diff($checkout_ref);
     if (!empty($patch)) {
       drush_log(dt('Local changes detected.'), 'warning');
       drush_print($patch);
@@ -479,9 +406,7 @@ function drush_bandaid_apply($project) {
       }
     }
     // Reset so we get the state back to the same as the local version.
-    if (!drush_shell_exec('git reset --hard')) {
-      throw new BandaidError('CANNOT_DIFF');
-    }
+    Git::reset(TRUE);
 
     // Apply patches to local branch.
     if (!empty($project['yaml']['patches'])) {
@@ -490,9 +415,7 @@ function drush_bandaid_apply($project) {
 
     // Apply a local patch.
     if ($project['local_patch']) {
-      if (!drush_shell_exec('GIT_DIR=. git apply -p1 %s --verbose', $project['local_patch_file'])) {
-        throw new BandaidError('CANNOT_PATCH');
-      }
+      Git::apply($project['local_patch_file']);
       drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
       unlink($project['local_patch_file']);
     }
@@ -618,33 +541,43 @@ function _bandaid_clone($name, $repo, $path) {
     $project_cache = $git_cache . '/' . $name . '-' . md5($repo);
     // Set up a new cache, if it doesn't exist.
     if (!file_exists($project_cache)) {
-      $command = 'git clone --mirror';
+      $options = array(
+        'mirror' => TRUE,
+      );
       if (drush_get_context('DRUSH_VERBOSE')) {
-        $command .= ' --verbose --progress';
+        $options += array(
+          'verbose' => TRUE,
+          'progress' => TRUE,
+        );
       }
-      $command .= ' %s %s';
-      if (!drush_shell_cd_and_exec($git_cache, $command, $repo, $project_cache)) {
-        throw new BandaidError('ERROR_CLONING');
-      }
+      Git::cloneRepository($repo, $project_cache, $options);
     }
     else {
       // Update the --mirror clone.
-      if (!drush_shell_cd_and_exec($project_cache, 'git remote update')) {
-        throw new BandaidError('ERROR_UPDATING');
-      }
+      $dir = getcwd();
+      chdir($project_cache);
+      Git::remoteUpdate();
+      chdir($dir);
     }
     $git_cache = $project_cache;
   }
 
-  $command = 'git clone %s %s';
+  $options = array();
   if (drush_get_context('DRUSH_VERBOSE')) {
-    $command .= ' --verbose --progress';
+    $options += array(
+      'verbose' => TRUE,
+      'progress' => TRUE,
+    );
   }
   if ($cache) {
-    $command .= ' --reference ' . drush_escapeshellarg($git_cache);
+    $options['reference'] = $git_cache;
   }
 
-  if (!drush_shell_exec($command, $repo, $path)) {
+  try {
+    Git::cloneRepository($repo, $path, $options);
+  }
+  catch (BandaidError $e) {
+    // Throw a new Exception so we can get the project name in.
     throw new BandaidError('CANNOT_CLONE', dt('Unable to clone @project from @url.', array('@project' => $name, '@url' => $url)));
   }
   return TRUE;
@@ -664,12 +597,12 @@ function _bandaid_patch($patches) {
     $output = '';
     // Test each patch style; -p1 is the default with git. See
     // http://drupal.org/node/1054616
-    $patch_levels = array('-p1', '-p0');
+    $patch_levels = array(1, 0);
     foreach ($patch_levels as $patch_level) {
-      $checked = drush_shell_exec('GIT_DIR=. git apply --check %s %s --verbose', $patch_level, $filename);
+      $checked = Git::applyCheck($filename, $patch_level);
       if ($checked) {
         // Apply the first successful style.
-        $patched = drush_shell_exec('GIT_DIR=. git apply %s %s --verbose', $patch_level, $filename);
+        $patched = Git::apply($filename, $patch_level);
         break;
       }
     }
@@ -680,7 +613,7 @@ function _bandaid_patch($patches) {
       foreach ($patch_levels as $patch_level) {
         // --no-backup-if-mismatch here is a hack that fixes some
         // differences between how patch works on windows and unix.
-        if ($patched = drush_shell_exec("patch %s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
+        if ($patched = drush_shell_exec("patch -p%s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
           break;
         }
       }
@@ -715,12 +648,8 @@ function _bandaid_patch($patches) {
       drush_log(dt('(@reason)', array('@reason' => $patch['reason'])), 'ok');
       $message = "\n\n" . $patch['reason'];
     }
-    if (!drush_shell_exec('git add --all .')) {
-      throw new BandaidError('CANNOT_ADD');
-    }
-    if (!drush_shell_exec('git commit -m ' . drush_escapeshellarg($message))) {
-      throw new BandaidError('CANNOT_COMMIT');
-    }
+    Git::add('.', TRUE);
+    Git::commit($message);
     drush_op('unlink', $filename);
   }
   return TRUE;
