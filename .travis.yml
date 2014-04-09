@@ -9,7 +9,7 @@ env:
 install:
   # Install Drush 6+ using composer.
   - if ( test $DRUSH_VERSION != 5.10.0 ); then export PATH="$HOME/.composer/vendor/bin:$PATH"; fi
-  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer global require drush/drush:$DRUSH_VERSION; fi
+  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer --prefer-source --no-interaction global require drush/drush:$DRUSH_VERSION; fi
   - if ( test $DRUSH_VERSION != 5.10.0 ); then export DRUSH_DIR=~/.composer/vendor/drush/drush; fi
   # Install Drush 5 manually, as it's not installable using composer.
   - if ( test $DRUSH_VERSION = 5.10.0 ); then export PATH="$HOME/drush:$PATH"; fi
