@@ -21,7 +21,9 @@ tools:
     suffixes:
       - php
       - inc
-  external_code_coverage: true
+  external_code_coverage:
+    # Wait up to fifteen minutes for code coverage.
+    timeout: 900
 before_commands:
   # Remove vendor code, we don't want to analyze that.
   - rm -rf vendor
