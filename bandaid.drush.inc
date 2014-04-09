@@ -13,6 +13,8 @@ require 'vendor/autoload.php';
 
 use Symfony\Component\Yaml\Yaml;
 
+define('BANDAID_MINIMUM_PHP', '5.3.0');
+
 /**
  * Implements hook_drush_command().
  */
@@ -57,6 +59,10 @@ function bandaid_drush_command() {
 }
 
 function drush_bandaid_patch($patch, $project = NULL) {
+  if (!_bandaid_check_php_version()) {
+    return FALSE;
+  }
+
   if (!$project) {
     $project_dir = realpath(drush_cwd());
     $project = basename($project_dir);
@@ -151,10 +157,9 @@ function drush_bandaid_patch($patch, $project = NULL) {
         file_put_contents($reason_file_name, $reason_content);
         drush_shell_exec_interactive($editor . " %s", $reason_file_name);
         $reason = explode("\n", file_get_contents($reason_file_name));
-        // @todo Drush 5 supports PHP 5.2, so this needs to be rewritten.
         $reason = array_filter($reason, function ($line) {
-                    return $line[0] != '#';
-                  }
+          return $line[0] != '#';
+        }
         );
         $reason = trim(implode("\n", $reason));
       }
@@ -181,6 +186,10 @@ function drush_bandaid_patch($patch, $project = NULL) {
 }
 
 function drush_bandaid_tearoff($project) {
+  if (!_bandaid_check_php_version()) {
+    return FALSE;
+  }
+
   $project = _bandaid_validate_project($project);
   if (!$project) {
     return FALSE;
@@ -356,6 +365,10 @@ function drush_bandaid_tearoff($project) {
 }
 
 function drush_bandaid_apply($project) {
+  if (!_bandaid_check_php_version()) {
+    return FALSE;
+  }
+
   $project = _bandaid_validate_project($project);
   if (!$project) {
     return FALSE;
@@ -489,6 +502,16 @@ function drush_bandaid_apply($project) {
     return FALSE;
   }
   drush_register_file_for_deletion($project['dir'] . '.old');
+}
+
+/**
+ * Check that PHP is high enough a version.
+ */
+function _bandaid_check_php_version() {
+  if (version_compare(phpversion(), BANDAID_MINIMUM_PHP) < 0) {
+    return drush_set_error('BANDAID_REQUIREMENTS_ERROR', dt('Your command line PHP installation is too old. Bandaid requires at least PHP !version.', array('!version' => DRUSH_MINIMUM_PHP)));
+  }
+  return TRUE;
 }
 
 /**
