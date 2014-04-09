@@ -16,7 +16,7 @@ class BandaidCase extends Drush_CommandTestCase {
     parent::setUpBeforeClass();
     $drush_dir = getenv('HOME') . '/.drush';
     // Copy in the command file, so the sandbox can find it.
-    exec('cp -r ' . escapeshellarg(dirname(dirname(__FILE__))) . ' ' . escapeshellarg($drush_dir));
+    symlink(dirname(dirname(__FILE__)) . '/bandaid.drush.inc', getenv('HOME') . '/.drush/bandaid.drush.inc');
 
     // Need to set up git minimally for it to work (else it wont commit).
     exec('git config --global user.email "drush@example.com"');
