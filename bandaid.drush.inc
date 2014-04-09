@@ -150,8 +150,8 @@ function drush_bandaid_patch($patch, $project = NULL) {
         drush_shell_exec_interactive($editor . " %s", $reason_file_name);
         $reason = explode("\n", file_get_contents($reason_file_name));
         $reason = array_filter($reason, function ($line) {
-                    return $line[0] != '#';
-                  }
+          return $line[0] != '#';
+        }
         );
         $reason = trim(implode("\n", $reason));
       }
