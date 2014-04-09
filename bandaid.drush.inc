@@ -92,6 +92,11 @@ function bandaid_drush_command() {
   return $items;
 }
 
+/**
+ * Command callback.
+ *
+ * Download and apply a patch to a project.
+ */
 function drush_bandaid_patch($patch, $project = NULL) {
   try {
     _bandaid_check_php_version();
@@ -203,6 +208,11 @@ function drush_bandaid_patch($patch, $project = NULL) {
   }
 }
 
+/**
+ * Command callback.
+ *
+ * Remove patches from project.
+ */
 function drush_bandaid_tearoff($project) {
   try {
     _bandaid_check_php_version();
@@ -365,6 +375,11 @@ function drush_bandaid_tearoff($project) {
   }
 }
 
+/**
+ * Command callback.
+ *
+ * Reapplies patches to project.
+ */
 function drush_bandaid_apply($project) {
   try {
     _bandaid_check_php_version();
@@ -549,6 +564,11 @@ function _bandaid_validate_project($project_name) {
   return $project;
 }
 
+/**
+ * Parse a modules info file.
+ *
+ * Figures out which version, and possibly patch level a module is.
+ */
 function _bandaid_parse_info($file) {
   if ($info = drush_drupal_parse_info_file($file)) {
     if (empty($info['project'])) {
@@ -629,6 +649,9 @@ function _bandaid_clone($name, $repo, $path) {
   return TRUE;
 }
 
+/**
+ * Apply patches to project.
+ */
 function _bandaid_patch($patches) {
   $local_patches = array();
   foreach ($patches as $patch) {
@@ -734,6 +757,9 @@ function _bandaid_download_file($download, $cache_duration = DRUSH_CACHE_LIFETIM
   return $tmp_file;
 }
 
+/**
+ * Removes d.o/drush/bandaid metadata from info files.
+ */
 function _bandaid_fix_info_files($dir) {
   $info_files = drush_scan_directory($dir, '/.*\.info$/');
   foreach ($info_files as $info_file) {
