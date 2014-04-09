@@ -199,7 +199,7 @@ function drush_bandaid_tearoff($project) {
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  if (!_bandaid_clone($project['name'], 'ssh://git@git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
+  if (!_bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
     return FALSE;
   }
   drush_register_file_for_deletion($checkout_dir);
@@ -366,7 +366,7 @@ function drush_bandaid_apply($project) {
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  if (!_bandaid_clone($project['name'], 'ssh://git@git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
+  if (!_bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir)) {
     return FALSE;
   }
   drush_register_file_for_deletion(realpath($checkout_dir));
