@@ -23,6 +23,8 @@ install:
   - if ( test ! -z $COVERAGE ); then export $COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
 before_script:
   - export BOOTSTRAP=$DRUSH_DIR/tests/drush_testcase.inc
+  # Disable host key checking for d.o.
+  - echo -e "Host git.drupal.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 script: phpunit --bootstrap=$BOOTSTRAP $COVERAGE tests
 notifications:
   flowdock: 78b17a3314f1bac5207d8e65e391287b
