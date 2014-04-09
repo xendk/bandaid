@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @file
+ * Helper classes for Bandaid.
+ */
+
 namespace Bandaid;
 
 /**
