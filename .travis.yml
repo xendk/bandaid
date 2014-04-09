@@ -1,0 +1,31 @@
+# Configuration for Travis CI at http://travis-ci.org/#!/xendk/bandaid
+language: php
+php:
+  - 5.3
+env:
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=dev-master COVERAGE=y
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.*
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=5.10.0
+install:
+  # Install Drush 6+ using composer.
+  - if ( test $DRUSH_VERSION != 5.10.0 ); then export PATH="$HOME/.composer/vendor/bin:$PATH"; fi
+  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer global require drush/drush:$DRUSH_VERSION; fi
+  - if ( test $DRUSH_VERSION != 5.10.0 ); then export DRUSH_DIR=~/.composer/vendor/drush/drush; fi
+  # Install Drush 5 manually, as it's not installable using composer.
+  - if ( test $DRUSH_VERSION = 5.10.0 ); then export PATH="$HOME/drush:$PATH"; fi
+  - if ( test $DRUSH_VERSION = 5.10.0 ); then git clone https://github.com/drush-ops/drush.git ~/drush; fi
+  - if ( test $DRUSH_VERSION = 5.10.0 ); then cd ~/drush; git checkout $DRUSH_VERSION; cd -; fi
+  - if ( test $DRUSH_VERSION = 5.10.0 ); then export DRUSH_DIR=~/drush; fi
+  - cd $DRUSH_DIR
+  - phpenv rehash
+  - cd -
+  - if ( test ! -z $COVERAGE ); then mkdir cov; fi
+  - if ( test ! -z $COVERAGE ); then export $COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
+before_script:
+  - export BOOTSTRAP=$DRUSH_DIR/tests/drush_testcase.inc
+script: phpunit --bootstrap=$BOOTSTRAP $COVERAGE tests
+notifications:
+  flowdock: 78b17a3314f1bac5207d8e65e391287b
+after_script:
+  - if ( test ! -z $COVERAGE ); then wget https://scrutinizer-ci.com/ocular.phar; fi
+  - if ( test ! -z $COVERAGE ); then php ocular.phar code-coverage:upload --format=php-clover cov/clover.xml; fi
