@@ -20,7 +20,7 @@ install:
   - phpenv rehash
   - cd -
   - if ( test ! -z $COVERAGE ); then mkdir cov; fi
-  - if ( test ! -z $COVERAGE ); then export $COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
+  - if ( test ! -z $COVERAGE ); then export COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
 before_script:
   - export BOOTSTRAP=$DRUSH_DIR/tests/drush_testcase.inc
   # Disable host key checking for d.o.
