@@ -96,29 +96,16 @@ function drush_bandaid_patch($patch, $project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    if (!$project) {
-      $project_dir = realpath(drush_cwd());
-      $project = basename($project_dir);
-    }
-    else {
-      $project_dir = realpath(drush_cwd() . '/' . $project);
-    }
-    $yaml_file = $project_dir . '.yml';
-
-    chdir($project_dir);
-    $project = basename($project_dir);
-
-    if (file_exists($yaml_file)) {
-      $yaml = Yaml::parse($yaml_file);
-    }
-    else {
-      $yaml = array(
+    $project = _bandaid_validate_project($project);
+    if (empty($project['yaml'])) {
+      $project['yaml'] = array(
         'patches' => array(),
       );
     }
+    chdir($project['dir']);
 
-    // @todo this was wholesomely copied and adjusted from _bandaid_patch, need to
-    // refactor things together again.
+    // @todo this was wholesomely copied and adjusted from _bandaid_patch, need
+    // to refactor things together again.
     $filename = _bandaid_download_file($patch);
     $patched = FALSE;
     $output = '';
@@ -207,9 +194,9 @@ function drush_bandaid_patch($patch, $project = NULL) {
       $new_patch['reason'] = $reason;
     }
 
-    $yaml['patches'][] = $new_patch;
+    $project['yaml']['patches'][] = $new_patch;
     // Only switch to inline format at level 4.
-    file_put_contents($yaml_file, Yaml::dump($yaml, 4, 2));
+    file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2));
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -554,8 +541,9 @@ function _bandaid_validate_project($project_name) {
     $project['local_patch'] = TRUE;
   }
 
-  if (file_exists($project['dir'] . '.yml')) {
-    $project['yaml'] = Yaml::parse($project['dir'] . '.yml');
+  $project['yaml_file'] = $project['dir'] . '.yml';
+  if (file_exists($project['yaml_file'])) {
+    $project['yaml'] = Yaml::parse($project['yaml_file']);
   }
 
   return $project;
