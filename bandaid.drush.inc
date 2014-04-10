@@ -208,19 +208,7 @@ function drush_bandaid_tearoff($project) {
 
     chdir($checkout_dir);
 
-    $branch = $project['version_info']['core'] . '-' .
-      $project['version_info']['major'] . '.x';
-    $tag = $project['version_info']['core'] . '-' .
-      $project['version_info']['version'];
-    $checkout_ref = $project['version_info']['core'] . '-' .
-      $project['version_info']['version'];
-    if ($project['version_info']['commits']) {
-      // Get history from base version to head.  Flip the order so we have the
-      // oldest commit first.
-      $commits = array_reverse(Git::onelineLog($tag, $branch));
-      // Pick out the nth commit, and split the line.
-      list($checkout_ref, $description) = explode(' ', $commits[$project['version_info']['commits'] - 1], 2);
-    }
+    list($checkout_ref, $description) = _bandaid_sha_from_info($project['version_info']);
 
     // Checkout base version.
     drush_log(dt('Checking out @ref.', array('@ref' => $checkout_ref)), 'status');
@@ -341,19 +329,7 @@ function drush_bandaid_apply($project) {
 
     chdir($checkout_dir);
 
-    $branch = $project['version_info']['core'] . '-' .
-      $project['version_info']['major'] . '.x';
-    $tag = $project['version_info']['core'] . '-' .
-      $project['version_info']['version'];
-    $checkout_ref = $project['version_info']['core'] . '-' .
-      $project['version_info']['version'];
-    if ($project['version_info']['commits']) {
-      // Get history from base version to head.  Flip the order so we have the
-      // oldest commit first.
-      $commits = array_reverse(Git::onelineLog($tag, $branch));
-      // Pick out the nth commit, and split the line.
-      list($checkout_ref, $description) = explode(' ', $commits[$version_info['commits'] - 1], 2);
-    }
+    list($checkout_ref, $description) = _bandaid_sha_from_info($project['version_info']);
 
     // Checkout base version.
     drush_log(dt('Checking out @ref.', array('@ref' => $checkout_ref)), 'status');
@@ -525,6 +501,28 @@ function _bandaid_tmpdir() {
   }
   drush_register_file_for_deletion($tmp_dir);
   return $tmp_dir;
+}
+
+/**
+ * Find the SHA for the version specified by an info file.
+ *
+ * Handles dev releases.
+ *
+ * @retern array
+ *   Two element array of sha and mesage. Message is empty for non-dev releases.
+ */
+function _bandaid_sha_from_info($version_info) {
+  $branch       = $version_info['core'] . '-' . $version_info['major'] . '.x';
+  $tag          = $version_info['core'] . '-' . $version_info['version'];
+  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
+  if ($version_info['commits']) {
+    // Get history from base version to head.  Flip the order so we have the
+    // oldest commit first.
+    $commits = array_reverse(Git::onelineLog($tag, $branch));
+    // Pick out the nth commit, and split the line.
+    return explode(' ', $commits[$project['version_info']['commits'] - 1], 2);
+  }
+  return array($checkout_ref, NULL);
 }
 
 /**
