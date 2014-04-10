@@ -17,7 +17,7 @@ class BandaidError extends \Exception {
    * Constuctor.
    */
   public function __construct($error, $message = '') {
-    $this->errro = $error;
+    $this->error = $error;
     parent::__construct($message);
   }
 
@@ -27,7 +27,7 @@ class BandaidError extends \Exception {
    * Calls drush_set_error().
    */
   public function drushSetError() {
-    if ($previous == $this->getPrevious() && ($previous instanceof BandaidError)) {
+    if (($previous = $this->getPrevious()) && ($previous instanceof BandaidError)) {
       $previous->drushSetError();
     }
     // The error has already been set.

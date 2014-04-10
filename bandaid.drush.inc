@@ -115,7 +115,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
     }
 
     if (!$patched) {
-      throw new BandaidError(PATCHING_FAILED);
+      throw new BandaidError('PATCHING_FAILED');
     }
     drush_log(dt('Successfully patched.'));
     $new_patch = array(

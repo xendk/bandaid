@@ -186,6 +186,26 @@ EOF;
   }
 
   /**
+   * We should get an error message when patching fails.
+   */
+  public function testPatchErrorMessage() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    // We use exif_custom for this test.
+    $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
+
+    // Try to patch it with a panels patch, that's sure to fail.
+    $options = array(
+      'home' => 'https://drupal.org/node/1985980',
+      'reason' => 'For altering of new panes.',
+    );
+    $patch1_string = 'drupal_alter(\'panels_new_pane\', $pane);';
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->drush('bandaid-patch 2>&1', array('https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch', 'exif_custom'), $options, NULL, $workdir, self::EXIT_ERROR);
+    $this->assertRegExp('/PATCHING_FAILED/', $this->getOutput());
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {
