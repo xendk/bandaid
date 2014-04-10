@@ -249,10 +249,8 @@ function drush_bandaid_tearoff($project) {
     Git::checkout('bandaid_local');
 
     // Clear out the files in the repo and copy in the files from the project.
-    foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
-      drush_delete_dir($file->filename);
-    }
-    drush_copy_dir($project['dir'], $checkout_dir, FILE_EXISTS_MERGE);
+    _bandaid_replace_repo($checkout_dir, $project['dir']);
+
     // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
     // not polute the diff here, but add it again when creating the new project
     // from git, in order not to polute the diff in the site. Unless it was
@@ -375,10 +373,7 @@ function drush_bandaid_apply($project) {
     Git::checkout('bandaid_local');
 
     // Clear out the files in the repo and copy in the files from the project.
-    foreach (drush_scan_directory($checkout_dir, '{.*}', array('.', '..', '.git'), 0, FALSE, 'filename', 0, TRUE) as $file) {
-      drush_delete_dir($file->filename);
-    }
-    drush_copy_dir($project['dir'], $checkout_dir, FILE_EXISTS_MERGE);
+    _bandaid_replace_repo($checkout_dir, $project['dir']);
 
     // Commit local version.
     Git::add('.', TRUE);
@@ -584,13 +579,24 @@ function _bandaid_clone($name, $repo, $path) {
 }
 
 /**
+ * Replace the files of a repository with the content of a directory.
+ */
+function _bandaid_replace_repo($repository, $source) {
+  $ingore_files = array('.', '..', '.git');
+  foreach (drush_scan_directory($repository, '{.*}', $ignore_files, 0, FALSE, 'filename', 0, TRUE) as $file) {
+    drush_delete_dir($file->filename);
+  }
+  drush_copy_dir($source, $repository, FILE_EXISTS_MERGE);
+}
+
+/**
  * Apply patches to project.
+ *
+ * @todo Handle local files.
  */
 function _bandaid_patch($patches) {
   $local_patches = array();
   foreach ($patches as $patch) {
-    // @todo something like $this->preprocessLocalFileUrl($info); in make
-
     // Download the patch.
     $filename = _bandaid_download_file($patch['patch']);
     $patched = FALSE;
@@ -635,13 +641,6 @@ function _bandaid_patch($patches) {
 
     $patch_url = $patch['patch'];
 
-    // @todo If this is a local patch, copy that into place as well.
-    // if ($info['local']) {
-    //   $local_patches[] = $info['url'];
-    //   // Use a local path for the PATCHES.txt file.
-    //   $pathinfo = pathinfo($patch_url);
-    //   $patch_url = $pathinfo['basename'];
-    // }
     drush_log(dt('Patched with @filename.', $dt_args), 'ok');
     $message = "Patched with " . $patch['patch'];
     if (!empty($patch['reason'])) {
@@ -718,7 +717,6 @@ function _bandaid_fix_info_files($dir) {
  * Inject metadata into all .info files for a given project.
  *
  * Just like d.o and drush does.
- * Originally from: http://drupalcode.org/project/drupalorg.git/blob/refs/heads/6.x-3.x:/drupalorg_project/plugins/release_packager/DrupalorgProjectPackageRelease.class.php#l192
  *
  * @param string $project_dir
  *   The full path to the root directory of the project to operate on.
@@ -727,7 +725,7 @@ function _bandaid_fix_info_files($dir) {
  * @param string $version
  *   The version string to inject into the .info file(s).
  *
- * @return boolean
+ * @return bool
  *   TRUE on success, FALSE on any failures appending data to .info files.
  */
 function _bandaid_inject_info_file_metadata($project_dir, $project_name, $version) {

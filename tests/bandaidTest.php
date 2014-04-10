@@ -30,7 +30,6 @@ class BandaidCase extends Drush_CommandTestCase {
   public function setUp() {
     // Deployotron needs a site to run in.
     if (!file_exists($this->webroot())) {
-      //exec("rm -rf " . $this->webroot() . '/sites/*');
       $this->setUpDrupal(1);
     }
   }
@@ -122,7 +121,7 @@ EOF;
    * This time with a module that has LICENSE.txt committed and the d.o info
    * line in the info file.
    */
- public function testBasicFunctionallity2() {
+  public function testBasicFunctionallity2() {
     $workdir = $this->webroot() . '/sites/all/modules';
     $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
 
@@ -184,7 +183,6 @@ EOF;
     // And the project should contain the contents of the patches.
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
-
   }
 
   /**
