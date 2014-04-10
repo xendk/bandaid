@@ -33,6 +33,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'ailases' => array('bp'),
   );
 
   $items['bandaid-tearoff'] = array(
@@ -44,6 +45,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'ailases' => array('bt'),
   );
 
   $items['bandaid-apply'] = array(
@@ -55,6 +57,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'ailases' => array('ba'),
   );
 
   return $items;
