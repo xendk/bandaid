@@ -582,7 +582,7 @@ function _bandaid_clone($name, $repo, $path) {
  * Replace the files of a repository with the content of a directory.
  */
 function _bandaid_replace_repo($repository, $source) {
-  $ingore_files = array('.', '..', '.git');
+  $ignore_files = array('.', '..', '.git');
   foreach (drush_scan_directory($repository, '{.*}', $ignore_files, 0, FALSE, 'filename', 0, TRUE) as $file) {
     drush_delete_dir($file->filename);
   }
