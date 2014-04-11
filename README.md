@@ -5,6 +5,8 @@ Bandaid
 Drush tool for helping with patch management on Drupal, which helps
 with patching, and upgrading modules.
 
+> "It's awesome" - Satisfied user
+
 [![Build Status](https://travis-ci.org/xendk/bandaid.svg?branch=master)](https://travis-ci.org/xendk/bandaid)
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/xendk/bandaid/badges/quality-score.png?s=baaa588ceaaa77851eba8531f75ffe1ff188b5a7)](https://scrutinizer-ci.com/g/xendk/bandaid/)
 [![Code Coverage](https://scrutinizer-ci.com/g/xendk/bandaid/badges/coverage.png?s=2bff1c11061ce10cb357fedbdd684465d40e959e)](https://scrutinizer-ci.com/g/xendk/bandaid/)
