@@ -193,7 +193,7 @@ function drush_bandaid_tearoff($project) {
 
     chdir(dirname($project['dir']));
 
-    if ($projcet['local_patch']) {
+    if ($project['local_patch']) {
       drush_log(dt('Local patch file exists, it will be overwritten.'), 'warning');
       if (!drush_confirm('Continue anyway?')) {
         return drush_user_abort();
