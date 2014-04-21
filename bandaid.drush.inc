@@ -9,7 +9,6 @@
  * dispossition should avert their eyes.
  */
 
-require 'vendor/autoload.php';
 require 'bandaid.inc';
 
 use Bandaid\Git;
@@ -21,6 +20,16 @@ define('BANDAID_MINIMUM_PHP', '5.3.0');
  * Implements hook_drush_command().
  */
 function bandaid_drush_command() {
+  $local_vendor_path = __DIR__ . '/vendor/autoload.php';
+  $global_vendor_path = __DIR__ . '/../../../vendor/autoload.php';
+
+  // Check for a local composer install or a global composer install. Vendor
+  // dirs are in different spots).
+  if ((!@include $local_vendor_path) && (!@include $global_vendor_path)) {
+    drush_log("Unable to load autoload.php. Bandaid requires Composer in order to install its depedencies and autoload classes.", 'warning');
+    return array();
+  }
+
   $items['bandaid-patch'] = array(
     'description' => 'Add a patch.',
     'arguments' => array(

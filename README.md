@@ -18,6 +18,30 @@ Bandaid assumes that you keep your site in Git or another VCS, and
 will assume that anything worth keeping is either committed or
 stashed. Consider yourself warned.
 
+Installing
+----------
+
+The recommended way to install is using composer:
+
+* [Install Composer globally](http://getcomposer.org/doc/00-intro.md#system-requirements) (if needed).
+
+* To install the lastest stable:
+
+    cd ~/.drush && composer require xendk/bandaid:*
+
+* To install the bleeding edge:
+
+    cd ~/.drush && composer require xendk/bandaid:dev-master
+
+* To update (will update to the lastest stable or bleeding edge
+  depending on what you chose initially):
+
+    cd ~/.drush && composer update xendk/bandaid
+
+Or you can install manuallly by cloning the repo or downloading a
+release package into .drush, and running composer install in the
+bandaid directory.
+
 Usage
 -----
 
