@@ -8,6 +8,7 @@
     { "name" : "Thomas Fini Hansen", "email": "xen@xen.dk" }
   ],
   "require": {
+    "php": ">=5.3.0",
     "symfony/yaml": "2.2.1"
   }
 }
