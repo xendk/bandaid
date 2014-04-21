@@ -1,4 +1,12 @@
 {
+  "name": "xendk/bandaid",
+  "description": "Drush command for helping with patching contrib modules.",
+  "homepage": "https://github.com/xendk/bandaid",
+  "license": "GPL-2.0+",
+  "keywords": ["drush"],
+  "authors" : [
+    { "name" : "Thomas Fini Hansen", "email": "xen@xen.dk" }
+  ],
   "require": {
     "symfony/yaml": "2.2.1"
   }
