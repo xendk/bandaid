@@ -19,6 +19,8 @@ install:
   - cd $DRUSH_DIR
   - phpenv rehash
   - cd -
+  # Install dependencies.
+  - composer install --prefer-source
   - if ( test ! -z $COVERAGE ); then mkdir cov; fi
   - if ( test ! -z $COVERAGE ); then export COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
 matrix:
