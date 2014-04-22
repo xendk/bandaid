@@ -32,6 +32,10 @@ class BandaidCase extends Drush_CommandTestCase {
     if (!file_exists($this->webroot())) {
       $this->setUpDrupal(1);
     }
+    else {
+      // Remove modules from previous test runs.
+      exec('rm -rf ' . $this->webroot() . '/sites/all/modules/*');
+    }
   }
 
   /**
