@@ -16,7 +16,7 @@ install:
   - cd $DRUSH_DIR 
   - git checkout $DRUSH_VERSION
   # Install Drush composer dependencies for 6+.
-  - if ( test $DRUSH_VERSION != 5.10.0 ); composer install; fi
+  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer install --prefer-source; fi
   - phpenv rehash
   - cd -
   # Install dependencies.
