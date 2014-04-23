@@ -10,6 +10,9 @@ install:
   # While composer is the prefered installation method for Drush 6+,
   # we need to do it by hand as composer wont install dev
   # dependencies, and we need those for runnig tests in Drush 7.
+  # And we need to update composer, as the autoload-dev option Drush 7
+  # uses is newer than the composer on Travis.
+  - composer self-update
   - export PATH="$HOME/drush:$PATH"
   - export DRUSH_DIR=~/drush
   - git clone https://github.com/drush-ops/drush.git $DRUSH_DIR
