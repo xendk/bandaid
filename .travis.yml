@@ -3,20 +3,20 @@ language: php
 php:
   - 5.3
 env:
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=dev-master COVERAGE=y
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.*
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=master COVERAGE=y
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.2.0
   - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=5.10.0
 install:
-  # Install Drush 6+ using composer.
-  - if ( test $DRUSH_VERSION != 5.10.0 ); then export PATH="$HOME/.composer/vendor/bin:$PATH"; fi
-  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer --prefer-source --no-interaction global require drush/drush:$DRUSH_VERSION; fi
-  - if ( test $DRUSH_VERSION != 5.10.0 ); then export DRUSH_DIR=~/.composer/vendor/drush/drush; fi
-  # Install Drush 5 manually, as it's not installable using composer.
-  - if ( test $DRUSH_VERSION = 5.10.0 ); then export PATH="$HOME/drush:$PATH"; fi
-  - if ( test $DRUSH_VERSION = 5.10.0 ); then git clone https://github.com/drush-ops/drush.git ~/drush; fi
-  - if ( test $DRUSH_VERSION = 5.10.0 ); then cd ~/drush; git checkout $DRUSH_VERSION; cd -; fi
-  - if ( test $DRUSH_VERSION = 5.10.0 ); then export DRUSH_DIR=~/drush; fi
-  - cd $DRUSH_DIR
+  # While composer is the prefered installation method for Drush 6+,
+  # we need to do it by hand as composer wont install dev
+  # dependencies, and we need those for runnig tests in Drush 7.
+  - export PATH="$HOME/drush:$PATH"
+  - export DRUSH_DIR=~/drush
+  - git clone https://github.com/drush-ops/drush.git $DRUSH_DIR
+  - cd $DRUSH_DIR 
+  - git checkout $DRUSH_VERSION
+  # Install Drush composer dependencies for 6+.
+  - if ( test $DRUSH_VERSION != 5.10.0 ); composer install; fi
   - phpenv rehash
   - cd -
   # Install dependencies.
