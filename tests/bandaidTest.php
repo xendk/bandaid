@@ -5,10 +5,18 @@
  * PHPUnit Tests for Bandaid.
  */
 
+// The test class changed name in Drush 7, so if we're running under Drush 5/6,
+// we load a class that defines the new name as a subclass to the old.
+if (class_exists('Drush_CommandTestCase', FALSE)) {
+  require_once 'oldtest-shim.inc';
+}
+
+use Unish\CommandUnishTestCase;
+
 /**
  * Deployotron testing class.
  */
-class BandaidCase extends Drush_CommandTestCase {
+class BandaidCase extends CommandUnishTestCase {
   /**
    * Setup before running any tests.
    */
@@ -36,6 +44,9 @@ class BandaidCase extends Drush_CommandTestCase {
       // Remove modules from previous test runs.
       exec('rm -rf ' . $this->webroot() . '/sites/all/modules/*');
     }
+
+    // Clear drush cache to ensure that it discovers the command.
+    $this->drush('cc', array('drush'));
   }
 
   /**

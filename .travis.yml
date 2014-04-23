@@ -23,16 +23,11 @@ install:
   - composer install --prefer-source
   - if ( test ! -z $COVERAGE ); then mkdir cov; fi
   - if ( test ! -z $COVERAGE ); then export COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
-matrix:
-  allow_failures:
-    # Testing was changed in HEAD, allow for failure until we figure
-    # out how to use the new version.
-    - env: UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=dev-master COVERAGE=y
 before_script:
-  - export BOOTSTRAP=$DRUSH_DIR/tests/drush_testcase.inc
+  - export CONFIG="--configuration=$DRUSH_DIR/tests"
   # Disable host key checking for d.o.
   - echo -e "Host git.drupal.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
-script: phpunit --bootstrap=$BOOTSTRAP $COVERAGE tests
+script: phpunit $CONFIG $COVERAGE tests
 notifications:
   flowdock: 78b17a3314f1bac5207d8e65e391287b
 after_script:
