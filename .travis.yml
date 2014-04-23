@@ -27,7 +27,7 @@ install:
   - if ( test ! -z $COVERAGE ); then mkdir cov; fi
   - if ( test ! -z $COVERAGE ); then export COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
 before_script:
-  - export CONFIG="--configuration=$DRUSH_DIR/tests"
+  - if ( test $DRUSH_VERSION = master ); then export CONFIG="--bootstrap=$DRUSH_DIR/tests/bootstrap.inc" ; else export CONFIG="--bootstrap=$DRUSH_DIR/tests/drush_testcase.inc"; fi
   # Disable host key checking for d.o.
   - echo -e "Host git.drupal.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 script: phpunit $CONFIG $COVERAGE tests
