@@ -42,7 +42,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
-    'ailases' => array('bp'),
+    'aliases' => array('bp'),
   );
 
   $items['bandaid-tearoff'] = array(
@@ -54,7 +54,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
-    'ailases' => array('bt'),
+    'aliases' => array('bt'),
   );
 
   $items['bandaid-apply'] = array(
@@ -68,7 +68,7 @@ function bandaid_drush_command() {
       'update-yaml' => "Remove failed patches from YAML file.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
-    'ailases' => array('ba'),
+    'aliases' => array('ba'),
   );
 
   return $items;
