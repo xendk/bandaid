@@ -221,6 +221,94 @@ EOF;
   }
 
   /**
+   * Test that a dev release is properly detected, and that patch skipping
+   * works.
+   */
+  public function testDevPatching() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    // This one is a bit more involved. As dev releases are inherrently
+    // unstable, we can't use a real one for testing, so we fake one instead.
+    $cwd = getcwd();
+    chdir($workdir);
+    exec('git clone ssh://git@git.drupal.org/project/snapengage');
+    chdir('snapengage');
+    // This is a commit 2 commits after the 7.x-1.1 release.
+    exec('git checkout 05fe01719cc07cbad6e9e19d123055dae3b435ed');
+    // Ungittyfy.
+    exec('rm -rf .git');
+
+    // Fudge the info file.
+    $info = file_get_contents('snapengage.info');
+    $info .= <<<EOF
+
+  ; Information added by drupal.org packaging script on 0000-00-00
+version = "7.x-1.1+2-dev"
+core = "7.x"
+project = "snapengage"
+datestamp = "0000000000"
+EOF;
+    file_put_contents('snapengage.info', $info);
+    chdir($cwd);
+
+    // Apply a patch, and check for success.
+    $options = array(
+      'home' => 'https://drupal.org/node/1916982',
+      'reason' => 'Panels support.',
+    );
+    $patch1_string = "Plugin to handle the 'snapengage_widget' content type";
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
+    $this->drush('bandaid-patch', array('https://drupal.org/files/snapengage-panels-integration-1916982-4.patch', 'snapengage'), $options, NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
+
+    // Check that the yaml file has been updated.
+    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
+
+    // Apply another patch, and check for success.
+    $options = array(
+      'home' => 'https://drupal.org/node/1933716',
+      'reason' => 'New API.',
+    );
+    $patch2_string = "If enabled this allowes you to use the advanced features.";
+    $this->assertEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
+    $this->drush('bandaid-patch', array('https://drupal.org/files/snapengage-integrate-new-api-code.patch', 'snapengage'), $options, NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
+
+    // Check that the yaml file has been updated.
+    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('snapengage'), array(), NULL, $workdir);
+    $this->log($this->getOutput());
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
+    $this->assertEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
+
+    // Update module.
+    $this->drush('dl', array('snapengage-1.2'), array('y' => TRUE), NULL, $workdir);
+
+    // Check that we fail per default on failing patches.
+    $this->drush('bandaid-apply 2>&1', array('snapengage'), array(), NULL, $workdir, self::EXIT_ERROR);
+
+    // Check for the expected error message.
+    $this->assertRegExp('/Unable to patch with snapengage-panels-integration-1916982-4.patch/', $this->getOutput());
+
+    // Try again, but now with options to skip it.
+    $this->drush('bandaid-apply 2>&1', array('snapengage'), array('ignore-failing' => TRUE, 'update-yaml' => TRUE), NULL, $workdir);
+
+    // Check output.
+    $this->assertRegExp('/Unable to patch with snapengage-panels-integration-1916982-4.patch/', $this->getOutput());
+    $this->assertRegExp('/Updated yaml file./', $this->getOutput());
+
+    // Check that it has been properly patched.
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
+    $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
+    // Check that the yaml file contains the right patches.
+    $this->assertFileNotContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
+    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
+
+    $this->log(file_get_contents($workdir . '/snapengage.yml'));
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {
@@ -236,5 +324,12 @@ EOF;
    */
   protected function assertFileContains($file, $string) {
     $this->assertContains($string, file_get_contents($file));
+  }
+
+  /**
+   * Assert that file contains a given string.
+   */
+  protected function assertFileNotContains($file, $string) {
+    $this->assertNotContains($string, file_get_contents($file));
   }
 }
