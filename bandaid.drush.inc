@@ -500,13 +500,14 @@ function _bandaid_parse_info($file) {
 }
 
 /**
- * Creates and returns the name of a teporary directory.
+ * Creates and returns the name of a temporary directory.
  */
 function _bandaid_tmpdir() {
-  $tmp_dir = rtrim(drush_find_tmp(), '/');
-  $tmp_dir .= '/bandaid_tmp_' . time() . '_' . uniqid();
+  $system_tmp = rtrim(drush_find_tmp(), '/');
+  $tmp_name = 'bandaid_tmp_' . time() . '_' . uniqid();
+  $tmp_dir = $system_tmp . '/' . $tmp_name;
   if (!drush_mkdir($tmp_dir)) {
-    return FALSE;
+    throw new BandaidError('CANNOT_CREATE_TEMP_DIR', dt('Cannot create temporary directory "@dir". Please check permissions for @tmp.', array('@dir' => $tmp_name, '@tmp' => $system_tmp)));
   }
   drush_register_file_for_deletion($tmp_dir);
   return $tmp_dir;
@@ -683,9 +684,6 @@ function _bandaid_download_file($download, $cache_duration = DRUSH_CACHE_LIFETIM
   }
 
   $tmp_path = _bandaid_tmpdir();
-  if (!$tmp_path) {
-    return FALSE;
-  }
   // Ensure that we aren't including the querystring when generating a filename
   // to save our download to.
   $file = basename(current(explode('?', $download, 2)));
