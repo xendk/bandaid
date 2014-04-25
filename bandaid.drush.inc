@@ -58,7 +58,7 @@ function bandaid_drush_command() {
   );
 
   $items['bandaid-apply'] = array(
-    'description' => 'Apply patches.',
+    'description' => 'Reapply patches.',
     'arguments' => array(
       'project' => 'Project to apply patches to.',
     ),
@@ -72,6 +72,37 @@ function bandaid_drush_command() {
   );
 
   return $items;
+}
+
+/**
+ * Implements hook_drush_help().
+ */
+function bandaid_drush_help($section) {
+  switch ($section) {
+    case 'meta:bandaid:title':
+      return dt('Bandaid');
+
+    case 'meta:bandaid:summary':
+      return dt('Bandaid patch management.');
+
+    case 'drush:bandaid-patch':
+      return dt('Apply a patch.
+
+Will download the patch and apply it to the project. Makes a note of it in
+the <project>.yml file.');
+
+    case 'drush:bandaid-tearoff':
+      return dt('Removes all patches from project.
+
+Attempts to remove the patches from the <project>.yml files from the project
+and creates a <project>.local.patch file with any remaining changes.');
+
+    case 'drush:bandaid-apply':
+      return dt('Reapply patches.
+
+Reapplies the patches from the <project.yml> file and any found
+<project>.local.patch file to the project.');
+  }
 }
 
 /**
