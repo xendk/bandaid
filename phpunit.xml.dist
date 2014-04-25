@@ -1,6 +1,7 @@
 <!-- Copy and rename to phpunit.xml. Customize as needed. -->
 <phpunit backupGlobals="false"
     backupStaticAttributes="false"
+    colors="true"
     >
   <testsuites>
     <testsuite name="Bandaid Test Suite">
