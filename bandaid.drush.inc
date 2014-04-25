@@ -530,7 +530,7 @@ function _bandaid_sha_from_info($version_info) {
     // oldest commit first.
     $commits = array_reverse(Git::onelineLog($tag, $branch));
     // Pick out the nth commit, and split the line.
-    return explode(' ', $commits[$project['version_info']['commits'] - 1], 2);
+    return explode(' ', $commits[$version_info['commits'] - 1], 2);
   }
   return array($checkout_ref, NULL);
 }
