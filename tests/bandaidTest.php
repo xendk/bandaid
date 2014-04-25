@@ -278,7 +278,6 @@ EOF;
 
     // Tearoff the patches and check that they're gone.
     $this->drush('bandaid-tearoff', array('snapengage'), array(), NULL, $workdir);
-    $this->log($this->getOutput());
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
 
@@ -304,8 +303,6 @@ EOF;
     // Check that the yaml file contains the right patches.
     $this->assertFileNotContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
     $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
-
-    $this->log(file_get_contents($workdir . '/snapengage.yml'));
   }
 
   /**
