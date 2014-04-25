@@ -230,7 +230,7 @@ EOF;
     // unstable, we can't use a real one for testing, so we fake one instead.
     $cwd = getcwd();
     chdir($workdir);
-    exec('git clone ssh://git@git.drupal.org/project/snapengage');
+    exec('git clone http://git.drupal.org/project/snapengage');
     chdir('snapengage');
     // This is a commit 2 commits after the 7.x-1.1 release.
     exec('git checkout 05fe01719cc07cbad6e9e19d123055dae3b435ed');
