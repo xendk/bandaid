@@ -143,7 +143,7 @@ EOF;
     // Apply a patch, and check for success.
     $options = array(
       'home' => 'https://drupal.org/node/2112241',
-      'reason' => 'Allow for overriding when upoloading multiple images.',
+      'reason' => 'Allow for overriding when uploading multiple images.',
     );
     $patch1_string = 'if(arg(3) == \'edit-multiple\'){return;}';
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
