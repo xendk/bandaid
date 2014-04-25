@@ -64,6 +64,8 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
+      'ignore-failing' => "Skip patches that fails to apply.",
+      'update-yaml' => "Remove failed patches from YAML file.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
     'ailases' => array('ba'),
@@ -393,14 +395,18 @@ function drush_bandaid_apply($project) {
 
     // Apply patches to local branch.
     if (!empty($project['yaml']['patches'])) {
-      _bandaid_patch($project['yaml']['patches']);
+      $new_patches = _bandaid_patch($project['yaml']['patches']);
     }
 
     // Apply a local patch.
     if ($project['local_patch']) {
-      Git::apply($project['local_patch_file']);
-      drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
-      unlink($project['local_patch_file']);
+      if (Git::apply($project['local_patch_file'])) {
+        drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
+        unlink($project['local_patch_file']);
+      }
+      else {
+        drush_log(dt('Error applying local patch. Please apply it manually.'), 'error');
+}
     }
 
     if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
@@ -413,6 +419,13 @@ function drush_bandaid_apply($project) {
     chdir(dirname($project['dir']));
     if (!drush_move_dir($checkout_dir, $project['dir'])) {
       throw new BandaidError('CANNOT_MOVE');
+    }
+
+    // If some patches were ignored, write new yaml file.
+    if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
+      $project['yaml']['patches'] = $new_patches;
+      file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2));
+      drush_log('Updated yaml file.', 'ok');
     }
     drush_register_file_for_deletion($project['dir'] . '.old');
   }
@@ -606,12 +619,18 @@ function _bandaid_replace_repo($repository, $source) {
  * @todo Handle local files.
  */
 function _bandaid_patch($patches) {
-  $local_patches = array();
+  $processed_patches = array();
   foreach ($patches as $patch) {
     // Download the patch.
     $filename = _bandaid_download_file($patch['patch']);
     $patched = FALSE;
     $output = '';
+
+    // Set up string placeholders to pass to dt().
+    $dt_args = array(
+      '@filename' => basename($filename),
+    );
+
     // Test each patch style; -p1 is the default with git. See
     // http://drupal.org/node/1054616
     $patch_levels = array(1, 0);
@@ -641,28 +660,32 @@ function _bandaid_patch($patches) {
       drush_log(implode("\n", $output));
     }
 
-    // Set up string placeholders to pass to dt().
-    $dt_args = array(
-      '@filename' => basename($filename),
-    );
+    if ($patched) {
+      $processed_patches[] = $patch;
+      $patch_url = $patch['patch'];
 
-    if (!$patched) {
-      throw new BandaidError('PATCH_ERROR', dt("Unable to patch with @filename.", $dt_args));
+      drush_log(dt('Patched with @filename.', $dt_args), 'ok');
+      $message = "Patched with " . $patch['patch'];
+      if (!empty($patch['reason'])) {
+        drush_log(dt('(@reason)', array('@reason' => $patch['reason'])), 'ok');
+        $message = "\n\n" . $patch['reason'];
+      }
+      Git::add('.', TRUE);
+      Git::commit($message);
+      drush_op('unlink', $filename);
     }
+    else {
+      if (drush_get_option('ignore-failing', FALSE)) {
+        drush_log(dt("Unable to patch with @filename, skipping.", $dt_args), 'error');
+        drush_op('unlink', $filename);
 
-    $patch_url = $patch['patch'];
-
-    drush_log(dt('Patched with @filename.', $dt_args), 'ok');
-    $message = "Patched with " . $patch['patch'];
-    if (!empty($patch['reason'])) {
-      drush_log(dt('(@reason)', array('@reason' => $patch['reason'])), 'ok');
-      $message = "\n\n" . $patch['reason'];
+      }
+      else {
+        throw new BandaidError('PATCH_ERROR', dt("Unable to patch with @filename.", $dt_args));
+      }
     }
-    Git::add('.', TRUE);
-    Git::commit($message);
-    drush_op('unlink', $filename);
   }
-  return TRUE;
+  return $processed_patches;
 }
 
 /**
