@@ -221,8 +221,9 @@ EOF;
   }
 
   /**
-   * Test that a dev release is properly detected, and that patch skipping
-   * works.
+   * Test that a dev release is properly detected.
+   *
+   * Also that patch skipping works.
    */
   public function testDevPatching() {
     $workdir = $this->webroot() . '/sites/all/modules';
