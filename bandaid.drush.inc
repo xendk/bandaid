@@ -442,7 +442,7 @@ function drush_bandaid_apply($project) {
       }
       else {
         drush_log(dt('Error applying local patch. Please apply it manually.'), 'error');
-}
+      }
     }
 
     if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
