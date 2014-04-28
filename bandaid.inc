@@ -34,10 +34,8 @@ class BandaidError extends \Exception {
     if ($this->error == 'drush_set_error') {
       return FALSE;
     }
-    if (!empty($this->message)) {
-      return drush_set_error($this->error, $this->message);
-    }
-    return drush_set_error($this->error);
+    $message = !empty($this->message) ? $this->message : NULL;
+    return drush_set_error($this->error, $message);
   }
 }
 
