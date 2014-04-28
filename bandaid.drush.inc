@@ -39,6 +39,8 @@ function bandaid_drush_command() {
     'options' => array(
       'home' => 'URL of issue.',
       'reason' => 'Reason for patch.',
+      'editor' => 'Editor command to use for reason if not given by --reason',
+      'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
@@ -179,17 +181,8 @@ function drush_bandaid_patch($patch, $project = NULL) {
 
     $reason = drush_get_option('reason', NULL);
     if (is_null($reason)) {
-      // Find an editor.
-      // @todo use drush_get_editor() instead.
-      foreach (array('GIT_EDITOR', 'VISUAL', 'EDITOR') as $var) {
-        $editor = getenv($var);
-        drush_print($var . ':' . $editor);
-        if ($editor) {
-          break;
-        }
-      }
-
-      if ($editor) {
+      if (!drush_get_option('no-editor', FALSE)) {
+        $editor = drush_get_editor();
         $reason_file_name = drush_tempnam('bandaid_');
         $reason_content = "
 
@@ -197,7 +190,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
 # Enter your explanation for adding this patch above.
 # Lines staring with # will be removed";
         file_put_contents($reason_file_name, $reason_content);
-        drush_shell_exec_interactive($editor . " %s", $reason_file_name);
+        drush_shell_exec_interactive($editor, $reason_file_name);
         $reason = explode("\n", file_get_contents($reason_file_name));
         $reason = array_filter($reason, function ($line) {
           return $line[0] != '#';
