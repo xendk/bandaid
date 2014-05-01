@@ -85,9 +85,11 @@ function bandaid_drush_help($section) {
   switch ($section) {
     case 'meta:bandaid:title':
       $help = dt('Bandaid');
+      break;
 
     case 'meta:bandaid:summary':
       $help = dt('Bandaid patch management.');
+      break;
 
     case 'drush:bandaid-patch':
       $help = array(
@@ -95,6 +97,7 @@ function bandaid_drush_help($section) {
         '',
         dt('Will download the patch and apply it to the project. Makes a note of it in the <project>.yml file.'),
       );
+      break;
 
     case 'drush:bandaid-tearoff':
       $help = array(
@@ -102,6 +105,7 @@ function bandaid_drush_help($section) {
         '',
         dt('Attempts to remove the patches from the <project>.yml files from the project and creates a <project>.local.patch file with any remaining changes.'),
       );
+      break;
 
     case 'drush:bandaid-apply':
       $help = array(
@@ -110,6 +114,7 @@ function bandaid_drush_help($section) {
         dt('Reapplies the patches from the <project.yml> file and any found
 <project>.local.patch file to the project.'),
       );
+      break;
   }
   return $help;
 }

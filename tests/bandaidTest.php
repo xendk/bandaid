@@ -307,6 +307,34 @@ EOF;
   }
 
   /**
+   * Test that drush help prints the right stuff.
+   */
+  public function testHelp() {
+    // Check normal help listing.
+    $this->drush('help');
+    $output = $this->getOutput();
+
+    $this->assertRegExp('/Bandaid: \\(bandaid\\)/', $output);
+    $this->assertRegExp('/ bandaid-apply \\(ba\\) +Reapply patches\\./', $output);
+    $this->assertRegExp('/ bandaid-patch \\(bp\\) +Add a patch\\./', $output);
+    $this->assertRegExp('/ bandaid-tearoff \\(bt\\) +Tear off patches\\./', $output);
+
+    // Check the little known filter listing.
+    $this->drush('help', array(), array('filter' => NULL, 'y' => TRUE));
+    $this->assertRegExp('/Bandaid: Bandaid patch management\\./', $this->getOutput());
+
+    // Check the summary on each command.
+    $this->drush('help', array('bandaid-patch'));
+    $this->assertRegExp('/Apply a patch\\./', $this->getOutput());
+
+    $this->drush('help', array('bandaid-tearoff'));
+    $this->assertRegExp('/Removes all patches from project\\./', $this->getOutput());
+
+    $this->drush('help', array('bandaid-apply'));
+    $this->assertRegExp('/Reapply patches\\./', $this->getOutput());
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {
