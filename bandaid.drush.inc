@@ -15,6 +15,8 @@ use Bandaid\Git;
 use Bandaid\BandaidError;
 use Symfony\Component\Yaml\Yaml;
 define('BANDAID_MINIMUM_PHP', '5.3.0');
+// Cache for a week. Patches shouldn't change.
+define('BANDAID_CACHE_LIFETIME_DEFAULT', 604800);
 
 /**
  * Implements hook_drush_command().
@@ -730,7 +732,7 @@ function _bandaid_patch($patches) {
  * @return string
  *   The location of the downloaded file, or FALSE on failure.
  */
-function _bandaid_download_file($download, $cache_duration = DRUSH_CACHE_LIFETIME_DEFAULT) {
+function _bandaid_download_file($download, $cache_duration = BANDAID_CACHE_LIFETIME_DEFAULT) {
   if (drush_get_option('no-cache', FALSE)) {
     $cache_duration = 0;
   }
