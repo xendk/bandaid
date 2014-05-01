@@ -413,7 +413,7 @@ function drush_bandaid_apply($project) {
     // Create a diff to show the user.
     $patch = Git::diff($checkout_ref);
     if (!empty($patch)) {
-      drush_log(dt('Local changes detected.'), 'warning');
+      drush_log(dt('Local changes detected, these will be lost if continuing.'), 'warning');
       drush_print($patch);
       if (!drush_confirm('Continue anyway?')) {
         return drush_user_abort();
