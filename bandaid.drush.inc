@@ -257,7 +257,7 @@ function drush_bandaid_tearoff($project) {
     }
     Git::checkout($checkout_ref);
 
-    // Some have erranously committed LICENSE.txt. Note if that's the case for
+    // Some have erroneously committed LICENSE.txt. Note if that's the case for
     // later.
     $license_exists = file_exists('LICENSE.txt');
     if ($license_exists) {
