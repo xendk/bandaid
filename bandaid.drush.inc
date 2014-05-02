@@ -526,26 +526,39 @@ function _bandaid_validate_project($project_name) {
  * Figures out which version, and possibly patch level a module is.
  */
 function _bandaid_parse_info($file) {
-  if ($info = drush_drupal_parse_info_file($file)) {
-    if (empty($info['project'])) {
-      throw new BandaidError('NO_PROJECT');
-    }
-    if (empty($info['version'])) {
-      throw new BandaidError('NO_VERSION');
-    }
-    // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
-    if (!preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $info['version'], $matches)) {
-      throw new BandaidError('BAD_VERSION', dt('Could not parse version "@version"', array('@version' => $info['version'])));
-    }
-    return array(
-      'project' => $info['project'],
-      'core' => $matches['core'],
-      'version' => $matches['major'] . '.' . $matches['minor'],
-      'major' => $matches['major'],
-      'commits' => empty($matches['commits']) ? '' : $matches['commits'],
-    );
+  $info = drush_drupal_parse_info_file($file);
+  if (!$info) {
+    throw new BandaidError('COULD_NOT_PARSE_INFO_FILE');
   }
-  return FALSE;
+
+  if (empty($info['project'])) {
+    throw new BandaidError('NO_PROJECT');
+  }
+
+  if (empty($info['version'])) {
+    throw new BandaidError('NO_VERSION');
+  }
+
+  return _bandaid_parse_version($info['version']) + array('project' => $info['project']);
+}
+
+/**
+ * Parse a version string.
+ */
+function _bandaid_parse_version($version) {
+  // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
+  if (!preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
+    throw new BandaidError('BAD_VERSION', dt('Could not parse version "@version"', array('@version' => $info['version'])));
+  }
+  if (empty($matches['minor'])) {
+    throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level, not supported.'));
+  }
+  return array(
+    'core' => $matches['core'],
+    'version' => $matches['major'] . '.' . $matches['minor'],
+    'major' => $matches['major'],
+    'commits' => empty($matches['commits']) ? '' : $matches['commits'],
+  );
 }
 
 /**

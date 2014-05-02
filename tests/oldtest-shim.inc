@@ -8,3 +8,5 @@
 namespace Unish;
 
 abstract class CommandUnishTestCase extends \Drush_CommandTestCase {}
+
+abstract class UnitUnishTestCase extends \Drush_UnitTestCase {}

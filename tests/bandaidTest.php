@@ -12,11 +12,12 @@ if (class_exists('Drush_CommandTestCase', FALSE)) {
 }
 
 use Unish\CommandUnishTestCase;
+use Unish\UnitUnishTestCase;
 
 /**
  * Deployotron testing class.
  */
-class BandaidCase extends CommandUnishTestCase {
+class BandaidFunctionalTestCase extends CommandUnishTestCase {
   /**
    * Setup before running any tests.
    */
@@ -357,5 +358,57 @@ EOF;
    */
   protected function assertFileNotContains($file, $string) {
     $this->assertNotContains($string, file_get_contents($file));
+  }
+}
+
+class BandaidVersionParsingCase extends UnitUnishTestCase {
+  /**
+   * Setup. Load command file.
+   */
+  public static function setUpBeforeClass() {
+    parent::setUpBeforeClass();
+    require_once dirname(__DIR__) . '/bandaid.drush.inc';
+  }
+  /**
+   * Test version parsing function.
+   */
+  public function testVersionParsing() {
+    // 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
+    $tests = array(
+      '7.x-1.4' => array(
+        'core' => '7.x',
+        'major' => '1',
+        'commits' => '',
+        'version' => '1.4',
+      ),
+      '7.x-1.4+3-dev' => array(
+        'core' => '7.x',
+        'major' => '1',
+        'commits' => '3',
+        'version' => '1.4',
+      ),
+      '7.x-2.0-alpha8+33-dev' => array(
+        'core' => '7.x',
+        'major' => '2',
+        'commits' => '33',
+        'version' => '2.0-alpha8',
+      ),
+    );
+
+    foreach ($tests as $version => $parsed) {
+      $this->assertEquals($parsed, _bandaid_parse_version($version));
+    }
+
+    // Test version strings that should fail.
+    $bad_tests = array('7.x-1.x-dev');
+    foreach ($bad_tests as $version) {
+      try {
+        _bandaid_parse_version($version);
+        $this->fail("Didn't get an exception on " . $version);
+      }
+      catch (Exception $e) {
+        $this->assertInstanceOf('\\Bandaid\\BandaidError', $e);
+      }
+    }
   }
 }
