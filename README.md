@@ -47,6 +47,10 @@ bandaid directory.
 Usage
 -----
 
+Common options:
+
+  `--no-cache`: will override the file download cache.
+
 Commands, in the order they'll be useful:
 
 ### Patching ###
@@ -66,6 +70,10 @@ that it's used by the following commands.
 
 If you don't like the interactive questions, these can be supplied
 with the `--home` and `--reason` options.
+
+You can use `--editor` to specify your preferred editor (or set
+`$EDITOR` or `$VISUAL`), or use `--no-editor` to not invoke an editor
+at all.
 
 #### Failure mode ####
 
@@ -110,19 +118,21 @@ Will reapply the patches from the yaml file, and lastly any
 
 #### Failure mode ####
 
-Craps out in case of error, leaving it up to you to deal with the
-problem. The way to do this would be to manually apply each patch from
-the yaml file, and replacing those who fail. Lastly, apply the local
-patch, fixing up any conflicts.
+Will error out per default if any of the patches from the YAML file
+fail to apply. The option `--ignore-failing` will make it ignore
+failing patches and `--update-yaml` removes the patches from the YAML
+file. Handy if the patches has been applied upstream.
 
-To ensure that you've not left a mess for the next poor soul to come
-along, commit your changes (to a temporary branch, if you prefer), and
-try running bandaid-tearoff, and see if the local patch looks sane.
+You can also hack the YAML file manually and use this command to apply
+a set of patches to a pristine version of the module. To ensure that
+you've not left a mess for the next poor soul to come along, commit
+your changes (to a temporary branch, if you prefer), and try running
+bandaid-tearoff, and see if the local patch looks sane.
 
 In closing
 ----------
 
-If you discover a module that produces crap in the local patches, open
-an issue. 
+If you discover a module that produces crap in the local patches or
+otherwise make Bandaid misbehave, open an issue.
 
 If it breaks, you get to keep both pieces.
