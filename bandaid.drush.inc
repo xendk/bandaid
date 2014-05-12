@@ -45,7 +45,7 @@ function bandaid_drush_command() {
       'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
     ),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bp'),
   );
 
@@ -57,7 +57,7 @@ function bandaid_drush_command() {
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
     ),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bt'),
   );
 
@@ -71,7 +71,7 @@ function bandaid_drush_command() {
       'ignore-failing' => "Skip patches that fails to apply.",
       'update-yaml' => "Remove failed patches from YAML file.",
     ),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('ba'),
   );
 
@@ -82,6 +82,7 @@ function bandaid_drush_command() {
  * Implements hook_drush_help().
  */
 function bandaid_drush_help($section) {
+  $help = NULL;
   switch ($section) {
     case 'meta:bandaid:title':
       $help = dt('Bandaid');
