@@ -336,6 +336,70 @@ EOF;
   }
 
   /**
+   * Test non-default branch handling.
+   *
+   * Regression test. Releases on the non default branch tripped up tearoff, as
+   * git wouldn't recognize the branch name because it wouldn't have a local
+   * tracking branch.
+   */
+  public function testNonDefaultBranch() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+
+    // We have to fake a dev release again.
+    $cwd = getcwd();
+    chdir($workdir);
+    exec('git clone http://git.drupal.org/project/ultimate_cron');
+    chdir('ultimate_cron');
+    // This is a commit 2 commits after the 7.x-1.9 release.
+    exec('git checkout 286b82bcd00734324cc85098a494f5335f73d17e');
+    // Ungittyfy.
+    exec('rm -rf .git');
+
+    // Fudge the info file.
+    $info = file_get_contents('ultimate_cron.info');
+    $info .= <<<EOF
+
+  ; Information added by drupal.org packaging script on 0000-00-00
+version = "7.x-1.9+2-dev"
+core = "7.x"
+project = "ultimate_cron"
+datestamp = "0000000000"
+EOF;
+    file_put_contents('ultimate_cron.info', $info);
+    chdir($cwd);
+
+    // Add a local modification to the module file, that suffices for testing
+    // this case.
+    $content = file_get_contents($workdir . '/ultimate_cron/ultimate_cron.module');
+    $content .= "\$var = \"Local modification.\";\n";
+    file_put_contents($workdir . '/ultimate_cron/ultimate_cron.module', $content);
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('ultimate_cron'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ultimate_cron'));
+
+    $local_patch = $workdir . '/ultimate_cron.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    // We'd like to use a nowdoc instead of a heredoc, but Drush 5 supports PHP
+    // 5.2.
+    $expected_diff = <<<EOF
+diff --git a/ultimate_cron.module b/ultimate_cron.module
+index 1cdf5b0..31daeaa 100755
+--- a/ultimate_cron.module
++++ b/ultimate_cron.module
+@@ -1402,3 +1402,4 @@ function _ultimate_cron_default_settings(\$default_rule = NULL) {
+     'queue_lease_time' => '',
+   );
+ }
++\$var = "Local modification.";
+
+EOF;
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {

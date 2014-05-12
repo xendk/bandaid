@@ -585,7 +585,7 @@ function _bandaid_tmpdir() {
  *   Two element array of sha and mesage. Message is empty for non-dev releases.
  */
 function _bandaid_sha_from_info($version_info) {
-  $branch       = $version_info['core'] . '-' . $version_info['major'] . '.x';
+  $branch       = 'origin/' . $version_info['core'] . '-' . $version_info['major'] . '.x';
   $tag          = $version_info['core'] . '-' . $version_info['version'];
   $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
   if ($version_info['commits']) {
