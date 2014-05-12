@@ -49,6 +49,19 @@ function bandaid_drush_command() {
     'aliases' => array('bp'),
   );
 
+  $items['bandaid-diff'] = array(
+    'description' => 'Show local diff.',
+    'arguments' => array(
+      'project' => 'Project to show diff for.',
+      'file' => 'File to save diff to, optional.'
+    ),
+    'options' => array(
+      'no-cache' => "Don't use patch download and git repo cache.",
+    ),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'aliases' => array('bd'),
+  );
+
   $items['bandaid-tearoff'] = array(
     'description' => 'Tear off patches.',
     'arguments' => array(
@@ -97,6 +110,14 @@ function bandaid_drush_help($section) {
         dt('Apply a patch.'),
         '',
         dt('Will download the patch and apply it to the project. Makes a note of it in the <project>.yml file.'),
+      );
+      break;
+
+    case 'drush:bandaid-diff':
+      $help = array(
+        dt('Outputs the diff of the local modifications.'),
+        '',
+        dt('Attempts to remove the patches from the <project>.yml files from the project outputs a diff with any remaining changes.'),
       );
       break;
 
@@ -248,70 +269,9 @@ function drush_bandaid_tearoff($project) {
       }
     }
 
-    // Clone repo.
-    drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
-    $checkout_dir = _bandaid_tmpdir();
-    _bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
-    drush_register_file_for_deletion($checkout_dir);
-
-    chdir($checkout_dir);
-
-    list($checkout_ref, $description) = _bandaid_sha_from_info($project['version_info']);
-
-    // Checkout base version.
-    drush_log(dt('Checking out @ref.', array('@ref' => $checkout_ref)), 'status');
-    if (!empty($description)) {
-      drush_log(dt('Commit message: @desc.', array('@desc' => $description)), 'status');
-    }
-    Git::checkout($checkout_ref);
-
-    // Some have erroneously committed LICENSE.txt. Note if that's the case for
-    // later.
-    $license_exists = file_exists('LICENSE.txt');
-    if ($license_exists) {
-      $license_perms = fileperms('LICENSE.txt');
-    }
-
-    // Create patch branch.
-    Git::branch('bandaid_patch');
-
-    // Create local branch.
-    Git::branch('bandaid_local');
-
-    // Apply patches to patch branch.
-    if (!empty($project['yaml']['patches'])) {
-      Git::checkout('bandaid_patch');
-      _bandaid_patch($project['yaml']['patches']);
-    }
-
-    // Copy the local project to the local branch.
-    Git::checkout('bandaid_local');
-
-    // Clear out the files in the repo and copy in the files from the project.
-    _bandaid_replace_repo($checkout_dir, $project['dir']);
-
-    // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
-    // not polute the diff here, but add it again when creating the new project
-    // from git, in order not to polute the diff in the site. Unless it was
-    // committed to git, in case we just carry over the file permissions, as d.o
-    // might still mess with those.
-    if (file_exists('LICENSE.txt')) {
-      if (!$license_exists) {
-        $license_perms = fileperms('LICENSE.txt');
-        $license = file_get_contents('LICENSE.txt');
-        unlink('LICENSE.txt');
-      }
-      else {
-        chmod('LICENSE.txt', $license_perms);
-      }
-    }
-    _bandaid_fix_info_files($checkout_dir);
-
-    Git::add('.', TRUE);
-    Git::commit("Committing local.");
+    list($checkout_dir, $checkout_ref, $patch) = _bandaid_clone_and_tearoff($project);
 
     // Create local patch file.
-    $patch = Git::diff('bandaid_patch', 'bandaid_local');
     if (!empty($patch)) {
       if (!file_put_contents($project['local_patch_file'], $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH');
@@ -349,6 +309,48 @@ function drush_bandaid_tearoff($project) {
       throw new BandaidError('CANNOT_MOVE');
     }
     drush_register_file_for_deletion($project['dir'] . '.old');
+
+  }
+  catch (BandaidError $e) {
+    return $e->drushSetError();
+  }
+}
+
+/**
+ * Command callback.
+ *
+ * Show diff of local modifications to a project.
+ */
+function drush_bandaid_diff($project, $file = NULL) {
+  try {
+    _bandaid_check_php_version();
+
+    $project = _bandaid_validate_project($project);
+
+    $cwd = getcwd();
+    chdir(dirname($project['dir']));
+
+    list($checkout_dir, $checkout_ref, $patch) = _bandaid_clone_and_tearoff($project);
+
+    // Create local patch file.
+    if (!empty($patch)) {
+      if ($file) {
+        chdir($cwd);
+        file_put_contents($file, $patch);
+        drush_log(dt('Saved to @file.', array('@file' => $file)), 'ok');
+      }
+      else {
+        drush_print($patch);
+      }
+    }
+
+    chdir($checkout_dir);
+    // Return to a pristine checkout.
+    Git::checkout($checkout_ref);
+    $filename = drush_save_data_to_temp_file($patch);
+    if (!Git::applyCheck($filename, 1)) {
+      drush_log(dt('Patch does not apply cleanly to base revision.'), 'warning');
+    }
 
   }
   catch (BandaidError $e) {
@@ -560,6 +562,80 @@ function _bandaid_parse_version($version) {
     'major' => $matches['major'],
     'commits' => empty($matches['commits']) ? '' : $matches['commits'],
   );
+}
+
+/**
+ * Clones project and does a tearoff.
+ *
+ * Returns path to clone, base ref and local patch contents.
+ */
+function _bandaid_clone_and_tearoff($project) {
+  // Clone repo.
+  drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
+  $checkout_dir = _bandaid_tmpdir();
+  _bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
+  drush_register_file_for_deletion($checkout_dir);
+
+  chdir($checkout_dir);
+
+  list($checkout_ref, $description) = _bandaid_sha_from_info($project['version_info']);
+
+  // Checkout base version.
+  drush_log(dt('Checking out @ref.', array('@ref' => $checkout_ref)), 'status');
+  if (!empty($description)) {
+    drush_log(dt('Commit message: @desc.', array('@desc' => $description)), 'status');
+  }
+  Git::checkout($checkout_ref);
+
+  // Some have erroneously committed LICENSE.txt. Note if that's the case for
+  // later.
+  $license_exists = file_exists('LICENSE.txt');
+  if ($license_exists) {
+    $license_perms = fileperms('LICENSE.txt');
+  }
+
+  // Create patch branch.
+  Git::branch('bandaid_patch');
+
+  // Create local branch.
+  Git::branch('bandaid_local');
+
+  // Apply patches to patch branch.
+  if (!empty($project['yaml']['patches'])) {
+    Git::checkout('bandaid_patch');
+    _bandaid_patch($project['yaml']['patches']);
+  }
+
+  // Copy the local project to the local branch.
+  Git::checkout('bandaid_local');
+
+  // Clear out the files in the repo and copy in the files from the project.
+  _bandaid_replace_repo($checkout_dir, $project['dir']);
+
+  // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
+  // not polute the diff here, but add it again when creating the new project
+  // from git, in order not to polute the diff in the site. Unless it was
+  // committed to git, in case we just carry over the file permissions, as d.o
+  // might still mess with those.
+  if (file_exists('LICENSE.txt')) {
+    if (!$license_exists) {
+      $license_perms = fileperms('LICENSE.txt');
+      $license = file_get_contents('LICENSE.txt');
+      unlink('LICENSE.txt');
+    }
+    else {
+      chmod('LICENSE.txt', $license_perms);
+    }
+  }
+  _bandaid_fix_info_files($checkout_dir);
+
+  Git::add('.', TRUE);
+  Git::commit("Committing local.");
+
+  // Create local patch.
+  $patch = Git::diff('bandaid_patch', 'bandaid_local');
+
+  return array($checkout_dir, $checkout_ref, $patch);
 }
 
 /**

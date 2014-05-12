@@ -90,15 +90,6 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $content .= "\$var = \"Local modification.\";\n";
     file_put_contents($workdir . '/panels/panels.module', $content);
 
-    // Tearoff the patches and check that they're gone.
-    $this->drush('bandaid-tearoff', array('panels'), array(), NULL, $workdir);
-    $this->assertEmpty($this->grep($patch1_string, $workdir . '/panels'));
-    $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
-    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
-
-    $local_patch = $workdir . '/panels.local.patch';
-    // Ensure that we got a local patch file and it contains the expected.
-    $this->assertFileExists($local_patch);
     // We'd like to use a nowdoc instead of a heredoc, but Drush 5 supports PHP
     // 5.2.
     $expected_diff = <<<EOF
@@ -113,6 +104,24 @@ index dcc13a6..82efc4a 100644
 +\$var = "Local modification.";
 
 EOF;
+
+    // Do a diff an check that it's the expected, and that the files haven't
+    // changed.
+    $this->drush('bandaid-diff', array('panels'), array(), NULL, $workdir);
+    $this->assertEquals($expected_diff, $this->getOutput());
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
+    $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('panels'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/panels'));
+    $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
+
+    $local_patch = $workdir . '/panels.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
     $this->assertEquals($expected_diff, file_get_contents($local_patch));
 
     // Upgrade panels.
@@ -163,14 +172,6 @@ EOF;
     $content = "\$var = \"Local modification.\";\n" . $content;
     file_put_contents($workdir . '/exif_custom/exif_custom.module', $content);
 
-    // Tearoff the patches and check that they're gone.
-    $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
-    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
-    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
-
-    $local_patch = $workdir . '/exif_custom.local.patch';
-    // Ensure that we got a local patch file and it contains the expected.
-    $this->assertFileExists($local_patch);
     // We'd like to use a nowdoc instead of a heredoc, but Drush 5 supports PHP
     // 5.2.
     $expected_diff = <<<EOF
@@ -185,6 +186,25 @@ index c2bdee6..b889d52 100644
  /**
 
 EOF;
+
+    // Do a diff to a file and check that it is as expected and the files
+    // haven't changed..
+    $diff_file = tempnam($workdir, 'patch_');
+    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    $this->assertFileExists($diff_file);
+    $this->assertEquals($expected_diff, file_get_contents($diff_file));
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    $local_patch = $workdir . '/exif_custom.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
     $this->assertEquals($expected_diff, file_get_contents($local_patch));
 
     // Upgrade panels.
