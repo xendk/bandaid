@@ -53,7 +53,7 @@ function bandaid_drush_command() {
     'description' => 'Show local diff.',
     'arguments' => array(
       'project' => 'Project to show diff for.',
-      'file' => 'File to save diff to, optional.'
+      'file' => 'File to save diff to, optional.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
