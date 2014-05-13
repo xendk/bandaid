@@ -80,6 +80,25 @@ at all.
 Will crap all over your module with if the patch doesn't apply. A
 subtle reminder of the good practice of committing the original module first.
 
+### Checking local changes ###
+
+    drush bandaid-diff <module> [patch file]
+
+Example:
+
+    drush bandaid-diff panels
+
+Shows the diff of the local changes, minus the patches from the YAML
+file. Can be used to examining the state of a module or producing
+patches for upstream. Should produce a warning if the patch wouldn't
+apply to the base revision.
+
+Will output the patch on stdout unless the second arguments is given.
+
+#### Failure mode ####
+
+Won't do anything in case of error.
+
 ### Removing patches ###
 
     drush bandaid-tearoff <module>
