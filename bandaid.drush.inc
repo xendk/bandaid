@@ -52,7 +52,7 @@ function bandaid_drush_command() {
   $items['bandaid-diff'] = array(
     'description' => 'Show local diff.',
     'arguments' => array(
-      'project' => 'Project to show diff for.',
+      'project' => 'Project to show diff for. Default to current dir.',
       'file' => 'File to save diff to, optional.',
     ),
     'options' => array(
@@ -65,7 +65,7 @@ function bandaid_drush_command() {
   $items['bandaid-tearoff'] = array(
     'description' => 'Tear off patches.',
     'arguments' => array(
-      'project' => 'Project to remove patches from.',
+      'project' => 'Project to remove patches from. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
@@ -77,7 +77,7 @@ function bandaid_drush_command() {
   $items['bandaid-apply'] = array(
     'description' => 'Reapply patches.',
     'arguments' => array(
-      'project' => 'Project to apply patches to.',
+      'project' => 'Project to apply patches to. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
@@ -146,8 +146,11 @@ function bandaid_drush_help($section) {
  *
  * Download and apply a patch to a project.
  */
-function drush_bandaid_patch($patch, $project = NULL) {
+function drush_bandaid_patch($patch = NULL, $project = NULL) {
   try {
+    if (!$patch) {
+      throw new BandaidError('NO_PATCH', dt('What do you suppose I should patch WITH?'));
+    }
     _bandaid_check_php_version();
 
     $project = _bandaid_validate_project($project);
@@ -254,7 +257,7 @@ function drush_bandaid_patch($patch, $project = NULL) {
  *
  * Remove patches from project.
  */
-function drush_bandaid_tearoff($project) {
+function drush_bandaid_tearoff($project = NULL) {
   try {
     _bandaid_check_php_version();
 
@@ -321,7 +324,7 @@ function drush_bandaid_tearoff($project) {
  *
  * Show diff of local modifications to a project.
  */
-function drush_bandaid_diff($project, $file = NULL) {
+function drush_bandaid_diff($project = NULL, $file = NULL) {
   try {
     _bandaid_check_php_version();
 
@@ -363,7 +366,7 @@ function drush_bandaid_diff($project, $file = NULL) {
  *
  * Reapplies patches to project.
  */
-function drush_bandaid_apply($project) {
+function drush_bandaid_apply($project = NULL) {
   try {
     _bandaid_check_php_version();
 
@@ -488,11 +491,19 @@ function _bandaid_check_php_version() {
  *
  * Ensure we can find it, parse the info file, check if there's any local patch
  * file, and load any found yaml file.
+ *
+ * If project not given, try the current dir.
  */
-function _bandaid_validate_project($project_name) {
+function _bandaid_validate_project($project_name = NULL) {
+  if (!$project_name) {
+    $project_name = getcwd();
+  }
+  else {
+    $project_name = realpath($project_name);
+  }
   $project = array(
     'name' => basename($project_name),
-    'dir' => realpath(drush_cwd() . '/' . $project_name),
+    'dir' => $project_name,
     'version_info' => NULL,
     'local_patch' => NULL,
     'yaml' => NULL,
