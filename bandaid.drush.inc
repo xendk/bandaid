@@ -65,7 +65,7 @@ function bandaid_drush_command() {
   $items['bandaid-tearoff'] = array(
     'description' => 'Tear off patches.',
     'arguments' => array(
-      'project' => 'Path tp project to remove patches from. Default to current dir.',
+      'project' => 'Path to project to remove patches from. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
@@ -77,7 +77,7 @@ function bandaid_drush_command() {
   $items['bandaid-apply'] = array(
     'description' => 'Reapply patches.',
     'arguments' => array(
-      'project' => 'Path tp project to apply patches to. Default to current dir.',
+      'project' => 'Path to project to apply patches to. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
