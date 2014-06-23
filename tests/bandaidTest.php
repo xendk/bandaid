@@ -108,7 +108,7 @@ EOF;
     // Do a diff an check that it's the expected, and that the files haven't
     // changed.
     $this->drush('bandaid-diff', array('panels'), array(), NULL, $workdir);
-    $this->assertEquals($expected_diff, $this->getOutput());
+    $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
@@ -252,10 +252,10 @@ EOF;
     // unstable, we can't use a real one for testing, so we fake one instead.
     $cwd = getcwd();
     chdir($workdir);
-    exec('git clone http://git.drupal.org/project/snapengage');
+    $this->execute('git clone http://git.drupal.org/project/snapengage');
     chdir('snapengage');
     // This is a commit 2 commits after the 7.x-1.1 release.
-    exec('git checkout 05fe01719cc07cbad6e9e19d123055dae3b435ed');
+    $this->execute('git checkout 05fe01719cc07cbad6e9e19d123055dae3b435ed');
     // Ungittyfy.
     exec('rm -rf .git');
 
@@ -368,10 +368,10 @@ EOF;
     // We have to fake a dev release again.
     $cwd = getcwd();
     chdir($workdir);
-    exec('git clone http://git.drupal.org/project/ultimate_cron');
+    $this->execute('git clone http://git.drupal.org/project/ultimate_cron');
     chdir('ultimate_cron');
     // This is a commit 2 commits after the 7.x-1.9 release.
-    exec('git checkout 286b82bcd00734324cc85098a494f5335f73d17e');
+    $this->execute('git checkout 286b82bcd00734324cc85098a494f5335f73d17e');
     // Ungittyfy.
     exec('rm -rf .git');
 
