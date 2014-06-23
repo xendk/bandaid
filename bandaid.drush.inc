@@ -36,7 +36,7 @@ function bandaid_drush_command() {
     'description' => 'Add a patch.',
     'arguments' => array(
       'patch' => 'URL of patch to apply.',
-      'project' => 'Project to patch. If left out, current dir is pactched.',
+      'project' => 'Path to project to patch. If left out, current dir is pactched.',
     ),
     'options' => array(
       'home' => 'URL of issue.',
@@ -52,7 +52,7 @@ function bandaid_drush_command() {
   $items['bandaid-diff'] = array(
     'description' => 'Show local diff.',
     'arguments' => array(
-      'project' => 'Project to show diff for. Default to current dir.',
+      'project' => 'Path to project to show diff for. Default to current dir.',
       'file' => 'File to save diff to, optional.',
     ),
     'options' => array(
@@ -65,7 +65,7 @@ function bandaid_drush_command() {
   $items['bandaid-tearoff'] = array(
     'description' => 'Tear off patches.',
     'arguments' => array(
-      'project' => 'Project to remove patches from. Default to current dir.',
+      'project' => 'Path to project to remove patches from. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
@@ -77,7 +77,7 @@ function bandaid_drush_command() {
   $items['bandaid-apply'] = array(
     'description' => 'Reapply patches.',
     'arguments' => array(
-      'project' => 'Project to apply patches to. Default to current dir.',
+      'project' => 'Path to project to apply patches to. Default to current dir.',
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",

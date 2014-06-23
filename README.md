@@ -55,11 +55,13 @@ Commands, in the order they'll be useful:
 
 ### Patching ###
 
-    drush bandaid-patch <url of patch> <module>
+    drush bandaid-patch <url of patch> [project path]
+
+Project path is the path to the project you want to patch. Optional if you are issuing the command from the module's or projects's directory.
 
 Example:
 
-    drush bandaid-patch https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch panels
+    drush bandaid-patch https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch sites/all/modules/contrib/panels
 
 Will patch the module with the given patch, and if successful, ask for
 the URL of the issue, and pop up your editor for a reason for patching
@@ -82,11 +84,11 @@ subtle reminder of the good practice of committing the original module first.
 
 ### Checking local changes ###
 
-    drush bandaid-diff <module> [patch file]
+    drush bandaid-diff [project path] [patch file]
 
 Example:
 
-    drush bandaid-diff panels
+    drush bandaid-diff sites/all/modules/contrib/panels
 
 Shows the diff of the local changes, minus the patches from the YAML
 file. Can be used to examining the state of a module or producing
@@ -101,11 +103,11 @@ Won't do anything in case of error.
 
 ### Removing patches ###
 
-    drush bandaid-tearoff <module>
+    drush bandaid-tearoff [project path]
 
 Example:
 
-    drush bandaid-tearoff panels
+    drush bandaid-tearoff sites/all/modules/contrib/panels
 
 Will reverse the applied patches, and create a `<module>.local.patch`
 file that contains any further local modifications.
@@ -126,11 +128,11 @@ than you'd expect.
 
 ### Re-patching ###
 
-    drush bandaid-apply <module>
+    drush bandaid-apply [project path]
 
 Example:
 
-    drush bandaid-apply panels
+    drush bandaid-apply sites/all/modules/contrib/panels
 
 Will reapply the patches from the yaml file, and lastly any
 `<module>.local.patch` and, if successful, delete the local patch file.
