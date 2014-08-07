@@ -300,20 +300,8 @@ function drush_bandaid_tearoff($project = NULL) {
         '');
     _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
-    if (!drush_delete_dir('.git')) {
-      throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
-    }
-
-    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
-      throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
-    }
-
     chdir(dirname($project['dir']));
-    if (!drush_move_dir($checkout_dir, $project['dir'])) {
-      throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
-    }
-    drush_register_file_for_deletion($project['dir'] . '.old');
-
+    _bandaid_overwrite_project($checkout_dir, $project['dir']);
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -452,26 +440,17 @@ function drush_bandaid_apply($project = NULL) {
       }
     }
 
-    if (!drush_delete_dir('.git')) {
-      throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
-    }
-
-    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
-      throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
-    }
-
     chdir(dirname($project['dir']));
-    if (!drush_move_dir($checkout_dir, $project['dir'])) {
-      throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
-    }
+    _bandaid_overwrite_project($checkout_dir, $project['dir']);
 
     // If some patches were ignored, write new yaml file.
     if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
       $project['yaml']['patches'] = $new_patches;
-      file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2));
+      if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
+        throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
+      }
       drush_log('Updated yaml file.', 'ok');
     }
-    drush_register_file_for_deletion($project['dir'] . '.old');
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -920,4 +899,23 @@ function _bandaid_inject_info_file_metadata($project_dir, $project_name, $versio
     }
   }
   return TRUE;
+}
+
+/**
+ * Overwrite project directory with our working directory.
+ */
+function _bandaid_overwrite_project($work_dir, $project_dir) {
+  if (!drush_delete_dir($work_dir . '/.git')) {
+    throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
+  }
+
+  if (!drush_move_dir($project_dir, $project_dir . '.old')) {
+    throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
+  }
+
+  chdir(dirname($project_dir));
+  if (!drush_move_dir($work_dir, $project_dir)) {
+    throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
+  }
+  drush_register_file_for_deletion($project_dir . '.old');
 }
