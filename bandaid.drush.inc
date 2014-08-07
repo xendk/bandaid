@@ -196,7 +196,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
 
     if (!$patched) {
-      throw new BandaidError('PATCHING_FAILED');
+      throw new BandaidError('PATCHING_FAILED', dt('Could not apply patch.'));
     }
     drush_log(dt('Successfully patched.'));
     $new_patch = array(
@@ -277,7 +277,7 @@ function drush_bandaid_tearoff($project = NULL) {
     // Create local patch file.
     if (!empty($patch)) {
       if (!file_put_contents($project['local_patch_file'], $patch)) {
-        throw new BandaidError('CANNOT_CREATE_PATCH');
+        throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
       }
     }
 
@@ -300,16 +300,17 @@ function drush_bandaid_tearoff($project = NULL) {
         '');
     _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
-    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
-      throw new BandaidError('CANNOT_MOVE');
+    if (!drush_delete_dir('.git')) {
+      throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
     }
 
-    if (!drush_delete_dir('.git')) {
-      throw new BandaidError('CANNOT_DELETE_GIT');
+    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
+      throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
     }
+
     chdir(dirname($project['dir']));
     if (!drush_move_dir($checkout_dir, $project['dir'])) {
-      throw new BandaidError('CANNOT_MOVE');
+      throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
     }
     drush_register_file_for_deletion($project['dir'] . '.old');
 
@@ -451,16 +452,17 @@ function drush_bandaid_apply($project = NULL) {
       }
     }
 
-    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
-      throw new BandaidError('CANNOT_MOVE');
+    if (!drush_delete_dir('.git')) {
+      throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
     }
 
-    if (!drush_delete_dir('.git')) {
-      throw new BandaidError('CANNOT_DELETE_GIT');
+    if (!drush_move_dir($project['dir'], $project['dir'] . '.old')) {
+      throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
     }
+
     chdir(dirname($project['dir']));
     if (!drush_move_dir($checkout_dir, $project['dir'])) {
-      throw new BandaidError('CANNOT_MOVE');
+      throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
     }
 
     // If some patches were ignored, write new yaml file.
@@ -511,14 +513,14 @@ function _bandaid_validate_project($project_name = NULL) {
   $info_file = $project['dir'] . '/' . $project['name'] . '.info';
 
   if (!file_exists($info_file)) {
-    throw new BandaidError('NO_INFO_FILE');
+    throw new BandaidError('NO_INFO_FILE', dt('No info file in @path?', array('@path' => $project['dir'])));
   }
 
   try {
     $project['version_info'] = _bandaid_parse_info($info_file);
   }
   catch (BandaidError $e) {
-    throw new BandaidError('COULD_NOT_PARSE_INFO', '', $e);
+    throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
   }
 
   $project['local_patch_file'] = $project['dir'] . '.local.patch';
@@ -542,15 +544,15 @@ function _bandaid_validate_project($project_name = NULL) {
 function _bandaid_parse_info($file) {
   $info = drush_drupal_parse_info_file($file);
   if (!$info) {
-    throw new BandaidError('COULD_NOT_PARSE_INFO_FILE');
+    throw new BandaidError('COULD_NOT_PARSE_INFO_FILE', dt('Error parsing the info file.'));
   }
 
   if (empty($info['project'])) {
-    throw new BandaidError('NO_PROJECT');
+    throw new BandaidError('NO_PROJECT', dt('No "project" in info file.'));
   }
 
   if (empty($info['version'])) {
-    throw new BandaidError('NO_VERSION');
+    throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
   }
 
   return _bandaid_parse_version($info['version']) + array('project' => $info['project']);
@@ -565,7 +567,7 @@ function _bandaid_parse_version($version) {
     throw new BandaidError('BAD_VERSION', dt('Could not parse version "@version"', array('@version' => $info['version'])));
   }
   if (empty($matches['minor'])) {
-    throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level, not supported.'));
+    throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level is not supported.'));
   }
   return array(
     'core' => $matches['core'],
@@ -849,7 +851,7 @@ function _bandaid_download_file($download, $cache_duration = BANDAID_CACHE_LIFET
   $file = basename(current(explode('?', $download, 2)));
   $tmp_file = drush_download_file($download, $tmp_path . '/' . $file, $cache_duration);
   if (!$tmp_file) {
-    throw new BandaidError('COULD_NOT_DOWNLOAD_FILE');
+    throw new BandaidError('COULD_NOT_DOWNLOAD_FILE', dt('Could not download @url', array('@url' => $download)));
   }
   return $tmp_file;
 }
@@ -874,7 +876,7 @@ function _bandaid_fix_info_files($dir) {
     if ($i) {
       $lines = array_slice($lines, 0, $i);
       if (!file_put_contents($info_file->filename, implode("\n", $lines))) {
-        throw new BandaidError('CANNOT_WRITE_INFO');
+        throw new BandaidError('CANNOT_WRITE_INFO', dt('Could not write info file @file', array('@file' => $info_file->filename)));
       }
     }
   }

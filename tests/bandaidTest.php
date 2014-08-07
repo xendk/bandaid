@@ -212,7 +212,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $patch1_string = 'drupal_alter(\'panels_new_pane\', $pane);';
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->drush('bandaid-patch 2>&1', array('https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch', 'exif_custom'), $options, NULL, $workdir, self::EXIT_ERROR);
-    $this->assertRegExp('/PATCHING_FAILED/', $this->getOutput());
+    $this->assertRegExp('/Could not apply patch./', $this->getOutput());
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
   }
 
