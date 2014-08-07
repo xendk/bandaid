@@ -207,7 +207,7 @@ EOF;
     $this->assertFileExists($local_patch);
     $this->assertEquals($expected_diff, file_get_contents($local_patch));
 
-    // Upgrade panels.
+    // Upgrade exif_custom.
     $this->drush('dl', array('exif_custom-1.14'), array('y' => TRUE), NULL, $workdir);
 
     // Reapply patches.
