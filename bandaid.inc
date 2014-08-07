@@ -127,11 +127,11 @@ class Git {
    * Return a diff.
    */
   public static function diff($ref1, $ref2 = '') {
-    $patch = static::exec('git diff %s %s', array($ref1, $ref2), 'CANNOT_DIFF');
-    // Due to going through drush_shell_exec_output(), we lost the trailing
-    // newline.
-    $patch = implode("\n", $patch);
-    return empty($patch) ? '' : $patch . "\n";
+    // Just grabbing it from stdout doesn't work as drush <= 6 uses exec, which
+    // strips trailing whitespace. Using a temp file gets around that problem.
+    $temp_file = drush_tempnam('bandaid_diff_');
+    static::exec('git diff %s %s > %s', array($ref1, $ref2, $temp_file), 'CANNOT_DIFF');
+    return file_get_contents($temp_file);
   }
 
   /**
