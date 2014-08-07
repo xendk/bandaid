@@ -16,9 +16,9 @@ class BandaidError extends \Exception {
   /**
    * Constuctor.
    */
-  public function __construct($error, $message = '') {
+  public function __construct($error, $message = '', $previous = NULL) {
     $this->error = $error;
-    parent::__construct($message);
+    parent::__construct($message, 0, $previous);
   }
 
   /**
