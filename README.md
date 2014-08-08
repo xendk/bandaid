@@ -55,20 +55,27 @@ Commands, in the order they'll be useful:
 
 ### Patching ###
 
-    drush bandaid-patch <url of patch> [project path]
+    drush bandaid-patch <url of patch|d.o issue> [project path]
 
 Project path is the path to the project you want to patch. Optional if you are issuing the command from the module's or projects's directory.
 
 Example:
 
-    drush bandaid-patch https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch sites/all/modules/contrib/panels
+    drush bandaid-patch https://www.drupal.org/node/1985980#comment-8596585 sites/all/modules/contrib/panels
 
-Will patch the module with the given patch, and if successful, ask for
-the URL of the issue, and pop up your editor for a reason for patching
-(to remind your future you why you did this in the first place). This
-information will be written to a .yml file next to the module
-directory. You can edit the yaml file if the need be, but be aware
-that it's used by the following commands.
+Will patch the module with the patch from the fifth comment (cid
+8596585), and if successful pop up your editor for a reason for
+patching (to remind your future you why you did this in the first
+place). This information will be written to a .yml file next to the
+module directory. You can edit the yaml file if the need be, but be
+aware that it's used by the following commands.
+
+For issue urls, the "home" of the patch is automatically set to the
+issue url, for urls pointing directly to the patch, it will ask the
+you.
+
+If supplied an issue url that doesn't point to a specific comment,
+it'll list the found patches and ask which to use.
 
 If you don't like the interactive questions, these can be supplied
 with the `--home` and `--reason` options.

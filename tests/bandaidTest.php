@@ -526,3 +526,66 @@ class BandaidVersionParsingCase extends UnitUnishTestCase {
     }
   }
 }
+
+class BandaidIssuePatchesCase extends UnitUnishTestCase {
+  /**
+   * Setup. Load command file.
+   */
+  public static function setUpBeforeClass() {
+    parent::setUpBeforeClass();
+    require_once dirname(__DIR__) . '/bandaid.drush.inc';
+    // Trigger loading of vendor libs.
+    bandaid_drush_command();
+  }
+  /**
+   * Test that parsing patches from issue URLs work.
+   */
+  public function testIssueParsing() {
+    $tests = array(
+      'https://www.drupal.org/node/2242071' => array(
+        0 => array(
+          'num' => 'node',
+          'cid' => 0,
+          'href' => 'https://www.drupal.org/files/issues/add-git-check-ignore-option.patch',
+        ),
+        8792979 => array(
+          'num' => '2',
+          'cid' => '8792979',
+          'href' => 'https://www.drupal.org/files/issues/add-git-check-ignore-options-with-drush-scan-directory.patch',
+        ),
+        8793767 => array(
+          'num' => '3',
+          'cid' => '8793767',
+          'href' => 'https://www.drupal.org/files/issues/drush_situs-git-check-ignore-2242071-3.patch',
+        ),
+        8795059 => array(
+          'num' => '9',
+          'cid' => '8795059',
+          'href' => 'https://www.drupal.org/files/issues/drush_situs-git-check-ignore-2242071-9.patch',
+        ),
+      ),
+
+      'https://www.drupal.org/node/1433906' => array(
+        0 => array(
+          'num' => 'node',
+          'cid' => 0,
+          'href' => 'https://www.drupal.org/files/devel-support.patch',
+        ),
+      ),
+
+      'https://www.drupal.org/node/2133205' => array(
+        8164173 => array(
+          'num' => '1',
+          'cid' => '8164173',
+          'href' => 'https://www.drupal.org/files/issues/drush_situs-Also_ignore_README-2133205-1.patch',
+        ),
+      ),
+    );
+
+    foreach ($tests as $url => $parsed) {
+      $res = _bandaid_get_patches_from_issue($url);
+      $this->assertEquals($parsed, $res);
+    }
+
+  }
+}

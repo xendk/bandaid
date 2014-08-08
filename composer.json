@@ -9,6 +9,7 @@
   ],
   "require": {
     "php": ">=5.3.0",
-    "symfony/yaml": "~2.2"
+    "symfony/yaml": "~2.2",
+    "fabpot/goutte": "1.0.6"
   }
 }

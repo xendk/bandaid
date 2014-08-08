@@ -14,6 +14,7 @@ require 'bandaid.inc';
 use Bandaid\Git;
 use Bandaid\BandaidError;
 use Symfony\Component\Yaml\Yaml;
+use Goutte\Client;
 define('BANDAID_MINIMUM_PHP', '5.3.0');
 // Cache for a week. Patches shouldn't change.
 define('BANDAID_CACHE_LIFETIME_DEFAULT', 604800);
@@ -160,6 +161,51 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
       );
     }
     chdir($project['dir']);
+
+    if (preg_match('{drupal.org/node/\\d+(#comment-(\\d+))?}', $patch, $rx)) {
+      drush_log(dt("Looks like a Drupal issue url, looking for patches."), 'status');
+      $patches = _bandaid_get_patches_from_issue($patch);
+      if (empty($patches)) {
+        throw new BandaidError('NO_PATCH', dt('No patches found on issue.'));
+      }
+
+      // If the URL points to a comment, try to find that specific patch.
+      if (!empty($rx[2])) {
+        if (isset($patches[$rx[2]])) {
+          $selected_patch = $patches[$rx[2]];
+        }
+        else {
+          throw new BandaidError('NO_PATCH', dt('No patch found on comment @cid.', array('@cid' => $rx[2])));
+        }
+      }
+      else {
+        if (count($patches) > 1) {
+          $options = array();
+          foreach ($patches as $issue_patch) {
+            $options[$issue_patch['cid']] = '#' . $issue_patch['num'] . ' ' . $issue_patch['href'];
+          }
+          $selected = drush_choice($options, dt("Please select patch."));
+          if (isset($patches[$selected])) {
+            $selected_patch = $patches[$selected];
+          }
+          else {
+            return drush_user_abort();
+          }
+        }
+        else {
+          drush_log(dt("Found one patch."), 'status');
+          $selected_patch = reset($patches);
+        }
+      }
+
+      if ($selected_patch) {
+        // Use the issue URL as home, if it is not already set.
+        if (!drush_get_option('home', NULL)) {
+          drush_set_option('home', $patch);
+        }
+        $patch = $selected_patch['href'];
+      }
+    }
 
     // @todo this was wholesomely copied and adjusted from _bandaid_patch, need
     // to refactor things together again.
@@ -918,4 +964,46 @@ function _bandaid_overwrite_project($work_dir, $project_dir) {
     throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
   }
   drush_register_file_for_deletion($project_dir . '.old');
+}
+
+/**
+ * Extract patch urls from a Drupal issue URL.
+ */
+function _bandaid_get_patches_from_issue($url) {
+
+  // $patches = array();
+  $client = new Client();
+  $crawler = $client->request('GET', $url);
+  $patches = $crawler->filter('#extended-file-field-table-field-issue-files tr')->each(function ($row) use (&$patches) {
+      $cid = 0;
+      $num = 'node';
+      $x = $row->filter('td.extended-file-field-table-cid a');
+      if (count($x)) {
+        if (preg_match('/^\\s*#(\\d+)\\s*$/', $x->text(), $rx)) {
+          $num = $rx[1];
+        }
+        if (preg_match('/#comment-(\\d+)$/', $x->attr('href'), $rx)) {
+          $cid = $rx[1];
+        }
+      }
+      $hrefs = $row->filter('td.extended-file-field-table-filename a')->each(function ($node){
+                 return $node->attr('href');
+               });
+      if ($hrefs[0]) {
+        return array(
+          'num' => $num,
+          'cid' => $cid,
+          'href' => $hrefs[0],
+        );
+      }
+    });
+  $return = array();
+  // Index the patches.
+  foreach ($patches as $patch) {
+    if (!empty($patch['num'])) {
+      $return[$patch['cid']] = $patch;
+    }
+  }
+  ksort($return);
+  return $return;
 }
