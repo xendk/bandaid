@@ -161,7 +161,6 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
 
     $expected_diff = "diff --git a/exif_custom.module b/exif_custom.module\nindex c2bdee6..b889d52 100644\n--- a/exif_custom.module\n+++ b/exif_custom.module\n@@ -1,3 +1,4 @@\n+\$var = \"Local modification.\";\n <?php\n \n /**\n";
 
-
     // Do a diff to a file and check that it is as expected and the files
     // haven't changed..
     $diff_file = tempnam($workdir, 'patch_');
@@ -414,7 +413,7 @@ EOF;
     $content = "\$var = \"Local modification.\";   \n" . $content;
     file_put_contents($workdir . '/exif_custom/exif_custom.module', $content);
 
-    $expected_diff ="diff --git a/exif_custom.module b/exif_custom.module\nindex c2bdee6..616306c 100644\n--- a/exif_custom.module\n+++ b/exif_custom.module\n@@ -1,3 +1,4 @@\n+\$var = \"Local modification.\";   \n <?php\n \n /**\n";
+    $expected_diff = "diff --git a/exif_custom.module b/exif_custom.module\nindex c2bdee6..616306c 100644\n--- a/exif_custom.module\n+++ b/exif_custom.module\n@@ -1,3 +1,4 @@\n+\$var = \"Local modification.\";   \n <?php\n \n /**\n";
 
     // Do a diff to a file and check that it is as expected and the files
     // haven't changed..
