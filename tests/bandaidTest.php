@@ -43,8 +43,11 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
       $this->setUpDrupal(1, FALSE, '7.29');
     }
     else {
-      // Remove modules from previous test runs.
-      exec('rm -rf ' . $this->webroot() . '/sites/all/modules/*');
+      // Remove modules from previous test runs, but save the readme.
+      $modules_dir = $this->webroot() . '/sites/all/modules';
+      $readme = file_get_contents($modules_dir . '/README.txt');
+      exec('rm -rf ' . $modules_dir . '/*');
+      file_put_contents($modules_dir . '/README.txt', $readme);
     }
 
     // Clear drush cache to ensure that it discovers the command.
