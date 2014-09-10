@@ -23,7 +23,6 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
    */
   public static function setUpBeforeClass() {
     parent::setUpBeforeClass();
-    $drush_dir = getenv('HOME') . '/.drush';
     // Copy in the command file, so the sandbox can find it.
     symlink(dirname(dirname(__FILE__)) . '/bandaid.drush.inc', getenv('HOME') . '/.drush/bandaid.drush.inc');
     symlink(dirname(dirname(__FILE__)) . '/bandaid.inc', getenv('HOME') . '/.drush/bandaid.inc');
@@ -39,7 +38,9 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
   public function setUp() {
     // Deployotron needs a site to run in.
     if (!file_exists($this->webroot())) {
-      $this->setUpDrupal(1);
+      // We're fixing this to a specific version, in order to test core
+      // patching.
+      $this->setUpDrupal(1, FALSE, '7.29');
     }
     else {
       // Remove modules from previous test runs.
@@ -447,6 +448,80 @@ EOF;
     // And the project should contain the contents of the patches.
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+  }
+
+  /**
+   * Test that it works on core too.
+   */
+  public function testCoreFunctionallity() {
+    $drupal_dir = $this->webroot();
+
+    // Apply a patch, and check for success.
+    $options = array(
+      'home' => 'https://www.drupal.org/node/2249025',
+      'reason' => 'MAINTAINERS.txt update',
+    );
+
+    // Make a directory to fake an module. This should survive the process.
+    mkdir($drupal_dir . '/sites/all/modules/banana');
+
+    $patch1_string = 'The Drupal security team provides Security Advisories for vulnerabilities;';
+    $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
+    $this->drush('bandaid-patch', array('https://www.drupal.org/files/issues/secteam-2249025-11.patch'), $options, NULL, $drupal_dir);
+    $this->assertNotEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
+
+    // Check that our "module" still exists.
+    $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
+
+    // We should have a yaml file now.
+    $this->assertFileExists($drupal_dir . '/core.yml');
+
+    // And that the patch was added.
+    $this->assertFileContains($drupal_dir . '/core.yml', 'https://www.drupal.org/files/issues/secteam-2249025-11.patch');
+
+    // Add a local modification to the module file.
+    $content = file_get_contents($drupal_dir . '/modules/user/user.module');
+    $content .= "\$var = \"Local modification.\";\n";
+    file_put_contents($drupal_dir . '/modules/user/user.module', $content);
+
+    // @todo fix this when bandaid is able to get to this point.
+    $expected_diff = "diff --git a/panels.module b/panels.module\nindex dcc13a6..82efc4a 100644\n--- a/panels.module\n+++ b/panels.module\n@@ -1757,3 +1757,4 @@ function panels_preprocess_html(&\$vars) {\n     \$vars['classes_array'][] = check_plain(\$panel_body_css['body_classes_to_add']);\n   }\n }\n+\$var = \"Local modification.\";\n";
+
+    // Do a diff an check that it's the expected, and that the files haven't
+    // changed.
+    $this->drush('bandaid-diff', array(), array(), NULL, $drupal_dir);
+    $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
+    $this->assertNotEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $drupal_dir . '/modules/user/user.module'));
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array(), array(), NULL, $drupal_dir);
+    $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/panels'));
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $drupal_dir . '/modules/user/user.module'));
+
+    $local_patch = $drupal_dir . '/core.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+    // Check that our "module" still exists.
+    $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
+
+    // We'll skip the upgrading here. The other tests should catch most
+    // breakage, so we'll go easy on core.
+
+    // Reapply patches.
+    $this->drush('bandaid-apply', array(), array(), NULL, $drupal_dir);
+
+    // The local patch file should be gone.
+    $this->assertFalse(file_exists($local_patch));
+
+    // And the patches should be reapplied.
+    $this->assertNotEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $drupal_dir . '/modules/user/user.module'));
+
+    // Check that our "module" still exists.
+    $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
   }
 
   /**
