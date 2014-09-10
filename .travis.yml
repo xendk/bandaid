@@ -3,7 +3,7 @@ language: php
 php:
   - 5.3
 env:
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=master COVERAGE=y
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=master COVERAGE=y UNISH_NO_TIMEOUTS=y
   - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.2.0
   - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=5.10.0
 install:
