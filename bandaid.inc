@@ -49,8 +49,9 @@ class Git {
   protected static function exec($command, $args = array(), $error_code = 'GIT_EXEC_ERROR', $error_msg = "Error executing command \"!command\"") {
     array_unshift($args, $command);
     $result = call_user_func_array('drush_shell_exec', $args);
+    array_shift($args);
     if (!$result) {
-      throw new BandaidError($error_code, strtr($error_msg, array('!command' => $command)));
+      throw new BandaidError($error_code, strtr($error_msg, array('!command' => vsprintf($command, $args))));
     }
     return drush_shell_exec_output();
   }
