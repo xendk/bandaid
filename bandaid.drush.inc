@@ -412,7 +412,7 @@ function drush_bandaid_apply($project = NULL) {
     // Clone repo.
     drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
     $checkout_dir = _bandaid_tmpdir();
-    !_bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
+    !_bandaid_clone($project['version_info']['project'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
 
     chdir($checkout_dir);
@@ -440,7 +440,7 @@ function drush_bandaid_apply($project = NULL) {
     Git::checkout('bandaid_local');
 
     // Clear out the files in the repo and copy in the files from the project.
-    _bandaid_replace_repo($checkout_dir, $project['dir']);
+    _bandaid_replace_repo($checkout_dir, $project['dir'], $project);
 
     // Commit local version.
     Git::add('.', TRUE);
@@ -537,23 +537,65 @@ function _bandaid_validate_project($project_name = NULL) {
   );
   $info_file = $project['dir'] . '/' . $project['name'] . '.info';
 
+  // Base for the yml and local patch.
+  $aux_file_base = $project_name;
+
+  $core = FALSE;
   if (!file_exists($info_file)) {
-    throw new BandaidError('NO_INFO_FILE', dt('No info file in @path?', array('@path' => $project['dir'])));
+    // Detect whether we're running on core.
+    $version_files = array(
+      "/modules/system/system.module",
+      "/includes/bootstrap.inc",
+      "/core/lib/Drupal.php",
+    );
+    foreach ($version_files as $version_file) {
+      if (file_exists($project_name . $version_file)) {
+        $file_contents = file_get_contents($project_name . $version_file);
+        if (preg_match("{(?:define\\('VERSION',|const VERSION =) +'([^']+)'}", $file_contents, $matches)) {
+          $core = $matches[1];
+          drush_log(dt('Core @version detected.', array('@version' => $core)), 'status');
+        }
+      }
+    }
+    if (!$core) {
+      throw new BandaidError('NO_INFO_FILE', dt('No info file in @path?', array('@path' => $project['dir'])));
+    }
   }
 
-  try {
-    $project['version_info'] = _bandaid_parse_info($info_file);
-  }
-  catch (BandaidError $e) {
-    throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
-  }
+  if ($core) {
+    $major = explode('.', $core);
 
-  $project['local_patch_file'] = $project['dir'] . '.local.patch';
+    if ($major[0] != 7) {
+      throw new BandaidError('UNSUPPORTED_CORE', dt('Drupal @major not supported yet.', array('@major' => $major[0])));
+    }
+
+    $project['version_info'] = array(
+      'project' => 'drupal',
+      'core' => $major[0],
+      'version' => $core,
+      'major' => $major[0],
+      // We only support full versions for core.
+      'commits' => '',
+      'is_core' => TRUE,
+    );
+
+    $aux_file_base = $project_name . '/core';
+    $project['ignore_callback'] = '_bandaid_ignore_callback_' . $major[0];
+  }
+  else {
+    try {
+      $project['version_info'] = _bandaid_parse_info($info_file);
+    }
+    catch (BandaidError $e) {
+      throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
+    }
+  }
+  $project['local_patch_file'] = $aux_file_base . '.local.patch';
   if (file_exists($project['local_patch_file'])) {
     $project['local_patch'] = TRUE;
   }
 
-  $project['yaml_file'] = $project['dir'] . '.yml';
+  $project['yaml_file'] = $aux_file_base . '.yml';
   if (file_exists($project['yaml_file'])) {
     $project['yaml'] = Yaml::parse($project['yaml_file']);
   }
@@ -580,7 +622,7 @@ function _bandaid_parse_info($file) {
     throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
   }
 
-  return _bandaid_parse_version($info['version']) + array('project' => $info['project']);
+  return _bandaid_parse_version($info['version']) + array('project' => $info['project'], 'is_core' => FALSE);
 }
 
 /**
@@ -611,7 +653,7 @@ function _bandaid_clone_and_tearoff($project) {
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  _bandaid_clone($project['name'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
+  _bandaid_clone($project['version_info']['project'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
   drush_register_file_for_deletion($checkout_dir);
 
   chdir($checkout_dir);
@@ -649,7 +691,7 @@ function _bandaid_clone_and_tearoff($project) {
   Git::checkout('bandaid_local');
 
   // Clear out the files in the repo and copy in the files from the project.
-  _bandaid_replace_repo($checkout_dir, $project['dir']);
+  _bandaid_replace_repo($checkout_dir, $project['dir'], $project);
 
   // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
   // not polute the diff here, but add it again when creating the new project
@@ -699,9 +741,10 @@ function _bandaid_tmpdir() {
  *   Two element array of sha and mesage. Message is empty for non-dev releases.
  */
 function _bandaid_sha_from_info($version_info) {
-  $branch       = 'origin/' . $version_info['core'] . '-' . $version_info['major'] . '.x';
-  $tag          = $version_info['core'] . '-' . $version_info['version'];
-  $checkout_ref = $version_info['core'] . '-' . $version_info['version'];
+  $prefix = $version_info['is_core'] ? '' : $version_info['core'] . '-';
+  $branch       = 'origin/' . $prefix. $version_info['major'] . '.x';
+  $tag          = $prefix . $version_info['version'];
+  $checkout_ref = $prefix . $version_info['version'];
   if ($version_info['commits']) {
     // Get history from base version to head.  Flip the order so we have the
     // oldest commit first.
@@ -761,7 +804,7 @@ function _bandaid_clone($name, $repo, $path) {
   }
   catch (BandaidError $e) {
     // Throw a new Exception so we can get the project name in.
-    throw new BandaidError('CANNOT_CLONE', dt('Unable to clone @project from @url.', array('@project' => $name, '@url' => $url)));
+    throw new BandaidError('CANNOT_CLONE', dt('Unable to clone @project from @url.', array('@project' => $name, '@url' => $repo)));
   }
   return TRUE;
 }
@@ -769,12 +812,66 @@ function _bandaid_clone($name, $repo, $path) {
 /**
  * Replace the files of a repository with the content of a directory.
  */
-function _bandaid_replace_repo($repository, $source) {
+function _bandaid_replace_repo($repository, $source, $project) {
   $ignore_files = array('.', '..', '.git');
   foreach (drush_scan_directory($repository, '{.*}', $ignore_files, 0, FALSE, 'filename', 0, TRUE) as $file) {
     drush_delete_dir($file->filename);
   }
-  drush_copy_dir($source, $repository, FILE_EXISTS_MERGE);
+  _bandaid_recusive_copy($source, $repository, $project);
+}
+
+/**
+ * Copy recursively, but ignore certain file/dirs.
+ *
+ * Original lifted from _drush_recursive_copy().
+ */
+function _bandaid_recusive_copy($src, $dest, $project, $base = NULL) {
+  if (!$base) {
+    $base = $src;
+  }
+
+  // Skip if the ignore_callback tells us too.
+  if (isset($project['ignore_callback'])) {
+    $function = $project['ignore_callback'];
+    $path = substr($src, strlen($base) + 1);
+    if ($function($path)) {
+      return TRUE;
+    }
+  }
+
+  if (is_dir($src)) {
+    if (!drush_mkdir($dest, TRUE)) {
+      return FALSE;
+    }
+    $dir_handle = opendir($src);
+    while ($file = readdir($dir_handle)) {
+      if ($file != "." && $file != "..") {
+        if (_bandaid_recusive_copy("$src/$file", "$dest/$file", $project, $base) !== TRUE) {
+          return FALSE;
+        }
+      }
+    }
+    closedir($dir_handle);
+  }
+  elseif (is_link($src)) {
+    symlink(readlink($src), $dest);
+  }
+  elseif (!(copy($src, $dest) && touch($dest, filemtime($src)))) {
+    return FALSE;
+  }
+
+  // Preserve execute permission.
+  if (!is_link($src) && !drush_is_windows()) {
+    // Get execute bits of $src.
+    $execperms = fileperms($src) & 0111;
+    // Apply execute permissions if any.
+    if ($execperms > 0) {
+      $perms = fileperms($dest) | $execperms;
+      chmod($dest, $perms);
+    }
+  }
+
+  return TRUE;
 }
 
 /**
@@ -1006,4 +1103,15 @@ function _bandaid_get_patches_from_issue($url) {
   }
   ksort($return);
   return $return;
+}
+
+/**
+ * Ignore callback for Drupal 7.
+ */
+function _bandaid_ignore_callback_7($path) {
+  if (preg_match('{^core\.(yml|local\.patch)$}', $path)) {
+    return TRUE;
+  }
+
+  return FALSE;
 }

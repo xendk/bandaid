@@ -465,7 +465,7 @@ EOF;
     // Make a directory to fake an module. This should survive the process.
     mkdir($drupal_dir . '/sites/all/modules/banana');
 
-    $patch1_string = 'The Drupal security team provides Security Advisories for vulnerabilities;';
+    $patch1_string = 'The Drupal security team provides Security Advisories for vulnerabilities';
     $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
     $this->drush('bandaid-patch', array('https://www.drupal.org/files/issues/secteam-2249025-11.patch'), $options, NULL, $drupal_dir);
     $this->assertNotEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
@@ -485,7 +485,7 @@ EOF;
     file_put_contents($drupal_dir . '/modules/user/user.module', $content);
 
     // @todo fix this when bandaid is able to get to this point.
-    $expected_diff = "diff --git a/panels.module b/panels.module\nindex dcc13a6..82efc4a 100644\n--- a/panels.module\n+++ b/panels.module\n@@ -1757,3 +1757,4 @@ function panels_preprocess_html(&\$vars) {\n     \$vars['classes_array'][] = check_plain(\$panel_body_css['body_classes_to_add']);\n   }\n }\n+\$var = \"Local modification.\";\n";
+    $expected_diff = "diff --git a/modules/user/user.module b/modules/user/user.module\nindex b239799..eb1215b3 100644\n--- a/modules/user/user.module\n+++ b/modules/user/user.module\n@@ -4027,3 +4027,4 @@ function user_system_info_alter(&\$info, \$file, \$type) {\n     \$info['hidden'] = FALSE;\n   }\n }\n+\$var = \"Local modification.\";\n";
 
     // Do a diff an check that it's the expected, and that the files haven't
     // changed.
@@ -496,7 +496,7 @@ EOF;
 
     // Tearoff the patches and check that they're gone.
     $this->drush('bandaid-tearoff', array(), array(), NULL, $drupal_dir);
-    $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/panels'));
+    $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $drupal_dir . '/modules/user/user.module'));
 
     $local_patch = $drupal_dir . '/core.local.patch';
