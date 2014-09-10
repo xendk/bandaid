@@ -320,13 +320,6 @@ function drush_bandaid_tearoff($project = NULL) {
 
     list($checkout_dir, $checkout_ref, $patch) = _bandaid_clone_and_tearoff($project);
 
-    // Create local patch file.
-    if (!empty($patch)) {
-      if (!file_put_contents($project['local_patch_file'], $patch)) {
-        throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
-      }
-    }
-
     // Return to a pristine checkout.
     Git::checkout($checkout_ref);
 
@@ -348,6 +341,15 @@ function drush_bandaid_tearoff($project = NULL) {
 
     chdir(dirname($project['dir']));
     _bandaid_overwrite_project($checkout_dir, $project['dir']);
+
+    // Create local patch file. We're doing it this late so a patch file inside
+    // the project wont get lost by the moving of dirs. Core has the file inside
+    // the dir.
+    if (!empty($patch)) {
+      if (!file_put_contents($project['local_patch_file'], $patch)) {
+        throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
+      }
+    }
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
