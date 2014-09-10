@@ -339,6 +339,7 @@ function drush_bandaid_tearoff($project = NULL) {
         '');
     _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
+    _bandaid_move_ignored_files($project['dir'], $checkout_dir, $project);
     chdir(dirname($project['dir']));
     _bandaid_overwrite_project($checkout_dir, $project['dir']);
 
@@ -488,6 +489,7 @@ function drush_bandaid_apply($project = NULL) {
       }
     }
 
+    _bandaid_move_ignored_files($project['dir'], $checkout_dir, $project);
     chdir(dirname($project['dir']));
     _bandaid_overwrite_project($checkout_dir, $project['dir']);
 
@@ -1066,6 +1068,44 @@ function _bandaid_overwrite_project($work_dir, $project_dir) {
 }
 
 /**
+ * Copy in files previously ignored.
+ *
+ * @todo largely copied from _bandaid_recusive_copy(), be smarter about it.
+ */
+function _bandaid_move_ignored_files($src, $dest, $project, $base = NULL) {
+  if (isset($project['ignore_callback'])) {
+    $function = $project['ignore_callback'];
+
+    if (!$base) {
+      $base = $src;
+    }
+
+    // Move the file/dir if the ignore callback tells us it was ignored.
+    if (isset($project['ignore_callback'])) {
+      $function = $project['ignore_callback'];
+      $path = substr($src, strlen($base) + 1);
+      if ($function($path)) {
+        rename($src, $dest);
+        return TRUE;
+      }
+    }
+
+    if (is_dir($src)) {
+      $dir_handle = opendir($src);
+      while ($file = readdir($dir_handle)) {
+        if ($file != "." && $file != "..") {
+          if (_bandaid_move_ignored_files("$src/$file", "$dest/$file", $project, $base) !== TRUE) {
+            return FALSE;
+          }
+        }
+      }
+      closedir($dir_handle);
+    }
+  }
+  return TRUE;
+}
+
+/**
  * Extract patch urls from a Drupal issue URL.
  */
 function _bandaid_get_patches_from_issue($url) {
@@ -1114,6 +1154,23 @@ function _bandaid_ignore_callback_7($path) {
   if (preg_match('{^core\.(yml|local\.patch)$}', $path)) {
     return TRUE;
   }
-
+  $parts = explode('/', $path);
+  if ($parts[0] == 'profile') {
+    if (isset($parts[1]) && !in_array($parts[1], array('minimal', 'standard', 'testing'))) {
+      return TRUE;
+    }
+  }
+  if ($parts[0] == 'sites') {
+    if (isset($parts[1])) {
+      if ($parts[1] == 'all' &&
+        isset($parts[2]) && in_array($parts[2], array('modules', 'themes')) &&
+        isset($parts[3]) && $parts[3] != 'README.txt') {
+        return TRUE;
+      }
+      if ($parts[1] == 'default' && isset($parts[2]) && $parts[2] != 'default.settings.php') {
+        return TRUE;
+      }
+    }
+  }
   return FALSE;
 }

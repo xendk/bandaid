@@ -464,6 +464,7 @@ EOF;
 
     // Make a directory to fake an module. This should survive the process.
     mkdir($drupal_dir . '/sites/all/modules/banana');
+    file_put_contents($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
 
     $patch1_string = 'The Drupal security team provides Security Advisories for vulnerabilities';
     $this->assertEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
@@ -472,6 +473,7 @@ EOF;
 
     // Check that our "module" still exists.
     $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
+    $this->assertFileContains($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
 
     // We should have a yaml file now.
     $this->assertFileExists($drupal_dir . '/core.yml');
@@ -484,7 +486,6 @@ EOF;
     $content .= "\$var = \"Local modification.\";\n";
     file_put_contents($drupal_dir . '/modules/user/user.module', $content);
 
-    // @todo fix this when bandaid is able to get to this point.
     $expected_diff = "diff --git a/modules/user/user.module b/modules/user/user.module\nindex b239799..eb1215b3 100644\n--- a/modules/user/user.module\n+++ b/modules/user/user.module\n@@ -4027,3 +4027,4 @@ function user_system_info_alter(&\$info, \$file, \$type) {\n     \$info['hidden'] = FALSE;\n   }\n }\n+\$var = \"Local modification.\";\n";
 
     // Do a diff an check that it's the expected, and that the files haven't
@@ -506,13 +507,13 @@ EOF;
 
     // Check that our "module" still exists.
     $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
+    $this->assertFileContains($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
 
     // We'll skip the upgrading here. The other tests should catch most
     // breakage, so we'll go easy on core.
 
     // Reapply patches.
     $this->drush('bandaid-apply', array(), array(), NULL, $drupal_dir);
-
     // The local patch file should be gone.
     $this->assertFalse(file_exists($local_patch));
 
@@ -522,6 +523,7 @@ EOF;
 
     // Check that our "module" still exists.
     $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
+    $this->assertFileContains($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
   }
 
   /**
