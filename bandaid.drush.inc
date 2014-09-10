@@ -630,6 +630,7 @@ function _bandaid_clone_and_tearoff($project) {
   $license_exists = file_exists('LICENSE.txt');
   if ($license_exists) {
     $license_perms = fileperms('LICENSE.txt');
+    $license = file_get_contents('LICENSE.txt');
   }
 
   // Create patch branch.
@@ -657,11 +658,10 @@ function _bandaid_clone_and_tearoff($project) {
   // might still mess with those.
   if (file_exists('LICENSE.txt')) {
     if (!$license_exists) {
-      $license_perms = fileperms('LICENSE.txt');
-      $license = file_get_contents('LICENSE.txt');
       unlink('LICENSE.txt');
     }
     else {
+      file_put_contents('LICENSE.txt', $license);
       chmod('LICENSE.txt', $license_perms);
     }
   }
