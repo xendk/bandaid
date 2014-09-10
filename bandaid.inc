@@ -157,7 +157,7 @@ class Git {
       }
     }
     $command = 'git clone ' . implode(' ', $opt) . ' %s %s';
-    return static::exec($command, array($repository, $path), 'CANNOT_CLONE', dt('Unable to clone from @url.', array('@url' => $url)));
+    return static::exec($command, array($repository, $path), 'CANNOT_CLONE', dt('Unable to clone from @url.', array('@url' => $repository)));
   }
 
   /**
