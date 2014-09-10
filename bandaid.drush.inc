@@ -1151,6 +1151,12 @@ function _bandaid_get_patches_from_issue($url) {
  * Ignore callback for Drupal 7.
  */
 function _bandaid_ignore_callback_7($path) {
+  // When working with core, there's a good chance there's a .git folder in the
+  // root. It shouldn't be copied into the repo (that'll mess things up), but
+  // it's rather important to copy over.
+  if ($path == '.git') {
+    return TRUE;
+  }
   if (preg_match('{^core\.(yml|local\.patch)$}', $path)) {
     return TRUE;
   }
