@@ -746,7 +746,7 @@ function _bandaid_tmpdir() {
  */
 function _bandaid_sha_from_info($version_info) {
   $prefix = $version_info['is_core'] ? '' : $version_info['core'] . '-';
-  $branch       = 'origin/' . $prefix. $version_info['major'] . '.x';
+  $branch       = 'origin/' . $prefix . $version_info['major'] . '.x';
   $tag          = $prefix . $version_info['version'];
   $checkout_ref = $prefix . $version_info['version'];
   if ($version_info['commits']) {
