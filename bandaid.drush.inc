@@ -927,7 +927,6 @@ function _bandaid_patch($patches) {
 
     if ($patched) {
       $processed_patches[] = $patch;
-      $patch_url = $patch['patch'];
 
       drush_log(dt('Patched with @filename.', $dt_args), 'ok');
       $message = "Patched with " . $patch['patch'];
@@ -994,8 +993,6 @@ function _bandaid_fix_info_files($dir) {
       // The \s+ gobbles up both drushs 2 spaces and d.o and our one. Seems d.o
       // fixed their capitalization at some point.
       if (preg_match('/;\s+Information added by ([Dd]rupal.org|bandaid|drush).*$/', $lines[$i], $matches)) {
-        // Drush adds two newlines in front, instead of the one d.o and we do.
-        $strip_from = $matches[1] == 'drush' ? $i - 1 : $i;
         break;
       }
     }
@@ -1113,7 +1110,7 @@ function _bandaid_get_patches_from_issue($url) {
   // $patches = array();
   $client = new Client();
   $crawler = $client->request('GET', $url);
-  $patches = $crawler->filter('#extended-file-field-table-field-issue-files tr')->each(function ($row) use (&$patches) {
+  $patches = $crawler->filter('#extended-file-field-table-field-issue-files tr')->each(function ($row) {
       $cid = 0;
       $num = 'node';
       $x = $row->filter('td.extended-file-field-table-cid a');
