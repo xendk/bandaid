@@ -323,14 +323,6 @@ function drush_bandaid_tearoff($project = NULL) {
     // Return to a pristine checkout.
     Git::checkout($checkout_ref);
 
-    // Recreate LICENSE.txt if needed.
-    if (!empty($license)) {
-      file_put_contents('LICENSE.txt', $license);
-    }
-    if (!empty($license_perms)) {
-      chmod('LICENSE.txt', $license_perms);
-    }
-
     // Fiddle with info files like d.o and drush.
     $version = $project['version_info']['core'] . '-' .
       $project['version_info']['version'] .
@@ -671,8 +663,8 @@ function _bandaid_clone_and_tearoff($project) {
   }
   Git::checkout($checkout_ref);
 
-  // Some have erroneously committed LICENSE.txt. Note if that's the case for
-  // later.
+  // Some have erroneously committed LICENSE.txt. Save the content and permisson
+  // for later so we can override the one coming from the local version.
   $license_exists = file_exists('LICENSE.txt');
   if ($license_exists) {
     $license_perms = fileperms('LICENSE.txt');
@@ -697,11 +689,9 @@ function _bandaid_clone_and_tearoff($project) {
   // Clear out the files in the repo and copy in the files from the project.
   _bandaid_replace_repo($checkout_dir, $project['dir'], $project);
 
-  // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
-  // not polute the diff here, but add it again when creating the new project
-  // from git, in order not to polute the diff in the site. Unless it was
-  // committed to git, in case we just carry over the file permissions, as d.o
-  // might still mess with those.
+  // Bring the LICENSE back to the same state as after checking out. Would
+  // probably be better to use git update-index --assume-unchanged, but until
+  // there's a test case that demonstrate the failure of this, we'll let it be.
   if (file_exists('LICENSE.txt')) {
     if (!$license_exists) {
       unlink('LICENSE.txt');
