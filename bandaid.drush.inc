@@ -45,6 +45,7 @@ function bandaid_drush_command() {
       'editor' => 'Editor command to use for reason if not given by --reason',
       'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bp'),
@@ -154,7 +155,12 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    if ($infofile_override = drush_get_option('info-file', FALSE)) {
+      $project = _bandaid_validate_project($project, $infofile_override);
+    }
+    else {
+      $project = _bandaid_validate_project($project);
+    }
     if (empty($project['yaml'])) {
       $project['yaml'] = array(
         'patches' => array(),
@@ -517,7 +523,7 @@ function _bandaid_check_php_version() {
  *
  * If project not given, try the current dir.
  */
-function _bandaid_validate_project($project_name = NULL) {
+function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL) {
   if (!$project_name) {
     $project_name = getcwd();
   }
@@ -531,7 +537,12 @@ function _bandaid_validate_project($project_name = NULL) {
     'local_patch' => NULL,
     'yaml' => NULL,
   );
-  $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+  if (empty($infofile_override)) {
+    $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+  }
+  else {
+    $info_file = $project['dir'] . '/' . $infofile_override;
+  }
 
   // Base for the yml and local patch.
   $aux_file_base = $project_name;
