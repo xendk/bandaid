@@ -587,14 +587,23 @@ class BandaidVersionParsingCase extends UnitUnishTestCase {
         'commits' => '33',
         'version' => '2.0-alpha8',
       ),
+      // Full-length SHA.
+      '60d9f28801533fecc92216a60d444d89d80e7611' => array(
+        'sha' => '60d9f28801533fecc92216a60d444d89d80e7611',
+      ),
+      // Minimum-length (12) SHA.
+      '60d9f2880153' => array(
+        'sha' => '60d9f2880153',
+      ),
     );
 
     foreach ($tests as $version => $parsed) {
       $this->assertEquals($parsed, _bandaid_parse_version($version));
     }
 
-    // Test version strings that should fail.
-    $bad_tests = array('7.x-1.x-dev');
+    // Test version strings that should fail (a dev-version without patch-level
+    // and a 11 char SHA.
+    $bad_tests = array('7.x-1.x-dev', '60d9f288015');
     foreach ($bad_tests as $version) {
       try {
         _bandaid_parse_version($version);
