@@ -588,7 +588,10 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
       }
     }
     if (!$core) {
-      throw new BandaidError('NO_INFO_FILE', dt('No info file in @path?', array('@path' => $project['dir'])));
+      throw new BandaidError('NO_INFO_FILE', dt('Could not find the info-file "@filename" in @path', array(
+        '@filename' => basename($info_file),
+        '@path' => $project['dir'],
+      )));
     }
   }
 
