@@ -155,13 +155,8 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     _bandaid_check_php_version();
 
-    if ($infofile_override = drush_get_option('info-file', FALSE)) {
-      // Allow for info-file overrides.
-      $project = _bandaid_validate_project($project, $infofile_override);
-    }
-    else {
-      $project = _bandaid_validate_project($project);
-    }
+    // Allow for info-file overrides.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
     if (empty($project['yaml'])) {
       $project['yaml'] = array(
         'patches' => array(),
