@@ -156,6 +156,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     _bandaid_check_php_version();
 
     if ($infofile_override = drush_get_option('info-file', FALSE)) {
+      // Allow for info-file overrides.
       $project = _bandaid_validate_project($project, $infofile_override);
     }
     else {
@@ -537,11 +538,33 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
     'local_patch' => NULL,
     'yaml' => NULL,
   );
-  if (empty($infofile_override)) {
-    $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+
+  // Pull in the project yaml-file.
+  $project['yaml_file'] = $project['dir'] . '.yml';
+  if (file_exists($project['yaml_file'])) {
+    $project['yaml'] = Yaml::parse($project['yaml_file']);
+  }
+
+  if (!empty($infofile_override)) {
+    // Allow the info-file to be overriden runtime.
+    $info_file = $project['dir'] . '/' . $infofile_override;
+
+    // Persist the information about the override to the yaml-file if it is not
+    // already in the file.
+    if (empty($project['yaml']['info-file']) || $infofile_override != $project['yaml']['info-file']) {
+      $project['yaml']['info-file'] = $infofile_override;
+      if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
+        throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
+      }
+    }
+  }
+  elseif (!empty($project['yaml']['info-file'])) {
+    // Allow the info-file to be overridden by the yaml-file.
+    $info_file = $project['dir'] . '/' . $project['yaml']['info-file'];
   }
   else {
-    $info_file = $project['dir'] . '/' . $infofile_override;
+    // Fall back to the default info-file.
+    $info_file = $project['dir'] . '/' . $project['name'] . '.info';
   }
 
   // Base for the yml and local patch.
