@@ -71,6 +71,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bt'),
@@ -309,7 +310,8 @@ function drush_bandaid_tearoff($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    // Get the project, allow for info-file override.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     chdir(dirname($project['dir']));
 
@@ -541,7 +543,7 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
   }
 
   if (!empty($infofile_override)) {
-    // Allow the info-file to be overriden runtime.
+    // Allow the info-file to be overriden at runtime.
     $info_file = $project['dir'] . '/' . $infofile_override;
 
     // Persist the information about the override to the yaml-file if it is not
