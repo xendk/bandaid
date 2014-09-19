@@ -293,8 +293,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
 
     $project['yaml']['patches'][] = $new_patch;
-    // Only switch to inline format at level 4.
-    file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2));
+    _bandaid_write_yaml($project);
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -345,6 +344,11 @@ function drush_bandaid_tearoff($project = NULL) {
     if (!empty($patch)) {
       if (!file_put_contents($project['local_patch_file'], $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
+      }
+
+      // If everything went ok and we have an override.
+      if (drush_get_option('info-file', FALSE)) {
+        _bandaid_write_yaml($project);
       }
     }
   }
@@ -492,9 +496,7 @@ function drush_bandaid_apply($project = NULL) {
     // If some patches were ignored, write new yaml file.
     if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
       $project['yaml']['patches'] = $new_patches;
-      if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
-        throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
-      }
+      _bandaid_write_yaml($project);
       drush_log('Updated yaml file.', 'ok');
     }
   }
@@ -546,13 +548,9 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
     // Allow the info-file to be overriden at runtime.
     $info_file = $project['dir'] . '/' . $infofile_override;
 
-    // Persist the information about the override to the yaml-file if it is not
-    // already in the file.
+    // Update the entry in the yaml-data.
     if (empty($project['yaml']['info-file']) || $infofile_override != $project['yaml']['info-file']) {
       $project['yaml']['info-file'] = $infofile_override;
-      if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
-        throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
-      }
     }
   }
   elseif (!empty($project['yaml']['info-file'])) {
@@ -1201,4 +1199,16 @@ function _bandaid_ignore_callback_7($path) {
     }
   }
   return FALSE;
+}
+
+/**
+ * Writes the [projectname].yml file.
+ */
+function _bandaid_write_yaml($project) {
+  // Persist the information about the override to the yaml-file if it is not
+  // already in the file.
+  // Only switch to inline format at level 4.
+  if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
+    throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
+  }
 }
