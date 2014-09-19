@@ -295,6 +295,8 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
 
     $project['yaml']['patches'][] = $new_patch;
+
+    // Make sure the yaml-file is up to date.
     _bandaid_write_yaml($project);
   }
   catch (BandaidError $e) {
@@ -348,10 +350,8 @@ function drush_bandaid_tearoff($project = NULL) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
       }
 
-      // If everything went ok and we have an override.
-      if (drush_get_option('info-file', FALSE)) {
-        _bandaid_write_yaml($project);
-      }
+      // Make sure the yaml-file is up to date.
+      _bandaid_write_yaml($project);
     }
   }
   catch (BandaidError $e) {
@@ -1207,10 +1207,22 @@ function _bandaid_ignore_callback_7($path) {
  * Writes the [projectname].yml file.
  */
 function _bandaid_write_yaml($project) {
-  // Persist the information about the override to the yaml-file if it is not
-  // already in the file.
+  if (empty($project['yaml'])) {
+    return;
+  }
+
+  // Prepare the output.
+  $new_yaml = Yaml::dump($project['yaml'], 4, 2);
+
+  $current_yaml = FALSE;
+  // Get the current contents of the file.
+  if (file_exists($project['yaml_file'])) {
+    $current_yaml = Yaml::parse($project['yaml_file']);
+  }
+
+  // Write the yaml if we have any new content.
   // Only switch to inline format at level 4.
-  if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
+  if ($new_yaml != $current_yaml && !file_put_contents($project['yaml_file'], $new_yaml)) {
     throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
   }
 }

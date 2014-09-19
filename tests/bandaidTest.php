@@ -65,6 +65,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $options = array(
       'home' => 'https://drupal.org/node/1985980',
       'reason' => 'For altering of new panes.',
+      'info-file' => 'panels.info',
     );
     $patch1_string = 'drupal_alter(\'panels_new_pane\', $pane);';
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/panels'));
@@ -77,9 +78,13 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     // And that the patch was added.
     $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch');
 
+    // And that we have a info-file entry.
+    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+
     $options = array(
       'home' => 'https://drupal.org/node/2098515',
       'reason' => 'To avoid notice.',
+      'info-file' => 'panels.info',
     );
     $patch2_string = 'if (!isset($pane->type)) {';
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
@@ -88,6 +93,9 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
 
     // Check that yaml file has been updated.
     $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/undefined_property_notices_fix-2098515-2.patch');
+
+    // And that we have a info-file entry.
+    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
 
     // Add a local modification to the module file.
     $content = file_get_contents($workdir . '/panels/panels.module');
@@ -104,11 +112,19 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
 
-    // Tearoff the patches and check that they're gone.
-    $this->drush('bandaid-tearoff', array('panels'), array(), NULL, $workdir);
+    // And that we have a info-file entry.
+    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+
+    $options = array(
+      'info-file' => 'panels.info',
+    );
+    $this->drush('bandaid-tearoff', array('panels'), $options, NULL, $workdir);
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/panels'));
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
+
+    // And that we have a info-file entry.
+    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
 
     $local_patch = $workdir . '/panels.local.patch';
     // Ensure that we got a local patch file and it contains the expected.
