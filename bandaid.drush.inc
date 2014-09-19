@@ -59,6 +59,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bd'),
@@ -86,6 +87,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
       'ignore-failing' => "Skip patches that fails to apply.",
       'update-yaml' => "Remove failed patches from YAML file.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('ba'),
@@ -366,7 +368,7 @@ function drush_bandaid_diff($project = NULL, $file = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     $cwd = getcwd();
     chdir(dirname($project['dir']));
@@ -408,7 +410,7 @@ function drush_bandaid_apply($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     chdir(dirname($project['dir']));
 
