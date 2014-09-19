@@ -1149,7 +1149,8 @@ function _bandaid_ignore_callback_7($path) {
   }
   $parts = explode('/', $path);
   if ($parts[0] == 'profile') {
-    if (isset($parts[1]) && !in_array($parts[1], array('minimal', 'standard', 'testing'))) {
+    $standard_profiles = array('minimal', 'standard', 'testing');
+    if (isset($parts[1]) && !in_array($parts[1], $standard_profiles)) {
       return TRUE;
     }
   }
