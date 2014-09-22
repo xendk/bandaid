@@ -89,10 +89,15 @@ class Git {
   }
 
   /**
-   * Get the oneline log between 2 commits.
+   * Get the oneline log for one or more commits.
    */
-  public static function onelineLog($start, $end) {
-    return static::exec('git log --format=oneline %s..%s', array($start, $end), 'CANNOT_GET_HISTORY');
+  public static function onelineLog($start, $end = NULL) {
+    if (empty($end)) {
+      return static::exec('git log --format=oneline -1 %s', array($start), 'CANNOT_GET_HISTORY');
+    }
+    else {
+      return static::exec('git log --format=oneline %s..%s', array($start, $end), 'CANNOT_GET_HISTORY');
+    }
   }
 
   /**

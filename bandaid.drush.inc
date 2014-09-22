@@ -330,12 +330,20 @@ function drush_bandaid_tearoff($project = NULL) {
     // Return to a pristine checkout.
     Git::checkout($checkout_ref);
 
-    // Fiddle with info files like d.o and drush.
-    $version = $project['version_info']['core'] . '-' .
-      $project['version_info']['version'] .
-      (!empty($project['version_info']['commits']) ?
-        '+' . $project['version_info']['commits'] . '-dev' :
-        '');
+    // Generate a version-string like d.o and drush would do.
+
+    // If this is a SHA-version thats all we can put into the version.
+    if (!empty($project['version_info']['sha'])) {
+      $version = $project['version_info']['sha'];
+    }
+    else {
+      // Generate a "Proper" version-string like we would see on d.o.
+      $version = $project['version_info']['core'] . '-' .
+        $project['version_info']['version'] .
+        (!empty($project['version_info']['commits']) ?
+          '+' . $project['version_info']['commits'] . '-dev' :
+          '');
+    }
     _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
     _bandaid_move_ignored_files($project['dir'], $checkout_dir, $project);
@@ -660,18 +668,27 @@ function _bandaid_parse_info($file) {
  */
 function _bandaid_parse_version($version) {
   // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
-  if (!preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
+  if (preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
+    if (empty($matches['minor'])) {
+      throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level is not supported.'));
+    }
+    $version_info = array(
+      'core' => $matches['core'],
+      'version' => $matches['major'] . '.' . $matches['minor'],
+      'major' => $matches['major'],
+      'commits' => empty($matches['commits']) ? '' : $matches['commits'],
+    );
+  }
+  // Detect a SHA, we accept sha's down to 12 chars, seems to be an accepted
+  // minimum for the linux kernel https://lkml.org/lkml/2010/10/28/287.
+  elseif (preg_match('/^(?P<sha>[a-f0-9]{12,40})$/', $version, $matches)) {
+    $version_info = array('sha' => $matches['sha']);
+  }
+  else {
     throw new BandaidError('BAD_VERSION', dt('Could not parse version "@version"', array('@version' => $version)));
   }
-  if (empty($matches['minor'])) {
-    throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level is not supported.'));
-  }
-  return array(
-    'core' => $matches['core'],
-    'version' => $matches['major'] . '.' . $matches['minor'],
-    'major' => $matches['major'],
-    'commits' => empty($matches['commits']) ? '' : $matches['commits'],
-  );
+
+  return $version_info;
 }
 
 /**
@@ -769,6 +786,12 @@ function _bandaid_tmpdir() {
  *   Two element array of sha and mesage. Message is empty for non-dev releases.
  */
 function _bandaid_sha_from_info($version_info) {
+  // If we already know the sha just go straight to the answer.
+  if (!empty($version_info['sha'])) {
+    $commits = Git::onelineLog($version_info['sha']);
+    return array($version_info['sha'], reset($commits));
+  }
+
   $prefix = $version_info['is_core'] ? '' : $version_info['core'] . '-';
   $branch       = 'origin/' . $prefix . $version_info['major'] . '.x';
   $tag          = $prefix . $version_info['version'];
