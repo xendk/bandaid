@@ -647,7 +647,7 @@ function _bandaid_parse_version($version) {
   }
   // Detect a SHA, we accept sha's down to 12 chars, seems to be an accepted
   // minimum for the linux kernel https://lkml.org/lkml/2010/10/28/287.
-  elseif (preg_match('/^(?P<sha>[a-z0-9]{12,40})$/', $version, $matches)) {
+  elseif (preg_match('/^(?P<sha>[a-f0-9]{12,40})$/', $version, $matches)) {
     $version_info = array('sha' => $matches['sha']);
   }
   else {

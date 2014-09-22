@@ -602,8 +602,8 @@ class BandaidVersionParsingCase extends UnitUnishTestCase {
     }
 
     // Test version strings that should fail (a dev-version without patch-level
-    // and a 11 char SHA.
-    $bad_tests = array('7.x-1.x-dev', '60d9f288015');
+    // a 11 char SHA, and a sha with non-hex chars.
+    $bad_tests = array('7.x-1.x-dev', '60d9f288015', 'badsha8801xxxx5');
     foreach ($bad_tests as $version) {
       try {
         _bandaid_parse_version($version);
