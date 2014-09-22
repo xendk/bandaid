@@ -45,6 +45,7 @@ function bandaid_drush_command() {
       'editor' => 'Editor command to use for reason if not given by --reason',
       'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bp'),
@@ -58,6 +59,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bd'),
@@ -70,6 +72,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bt'),
@@ -84,6 +87,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
       'ignore-failing' => "Skip patches that fails to apply.",
       'update-yaml' => "Remove failed patches from YAML file.",
+      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('ba'),
@@ -154,7 +158,8 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    // Get the project, allow for info-file override.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
     if (empty($project['yaml'])) {
       $project['yaml'] = array(
         'patches' => array(),
@@ -290,8 +295,9 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
 
     $project['yaml']['patches'][] = $new_patch;
-    // Only switch to inline format at level 4.
-    file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2));
+
+    // Make sure the yaml-file is up to date.
+    _bandaid_write_yaml($project);
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -307,7 +313,8 @@ function drush_bandaid_tearoff($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    // Get the project, allow for info-file override.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     chdir(dirname($project['dir']));
 
@@ -342,6 +349,9 @@ function drush_bandaid_tearoff($project = NULL) {
       if (!file_put_contents($project['local_patch_file'], $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
       }
+
+      // Make sure the yaml-file is up to date.
+      _bandaid_write_yaml($project);
     }
   }
   catch (BandaidError $e) {
@@ -358,7 +368,7 @@ function drush_bandaid_diff($project = NULL, $file = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     $cwd = getcwd();
     chdir(dirname($project['dir']));
@@ -400,7 +410,7 @@ function drush_bandaid_apply($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project);
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     chdir(dirname($project['dir']));
 
@@ -488,9 +498,7 @@ function drush_bandaid_apply($project = NULL) {
     // If some patches were ignored, write new yaml file.
     if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
       $project['yaml']['patches'] = $new_patches;
-      if (!file_put_contents($project['yaml_file'], Yaml::dump($project['yaml'], 4, 2))) {
-        throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
-      }
+      _bandaid_write_yaml($project);
       drush_log('Updated yaml file.', 'ok');
     }
   }
@@ -517,7 +525,7 @@ function _bandaid_check_php_version() {
  *
  * If project not given, try the current dir.
  */
-function _bandaid_validate_project($project_name = NULL) {
+function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL) {
   if (!$project_name) {
     $project_name = getcwd();
   }
@@ -531,7 +539,30 @@ function _bandaid_validate_project($project_name = NULL) {
     'local_patch' => NULL,
     'yaml' => NULL,
   );
-  $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+
+  // Pull in the project yaml-file.
+  $project['yaml_file'] = $project['dir'] . '.yml';
+  if (file_exists($project['yaml_file'])) {
+    $project['yaml'] = Yaml::parse($project['yaml_file']);
+  }
+
+  if (!empty($infofile_override)) {
+    // Allow the info-file to be overriden at runtime.
+    $info_file = $project['dir'] . '/' . $infofile_override;
+
+    // Update the entry in the yaml-data.
+    if (empty($project['yaml']['info-file']) || $infofile_override != $project['yaml']['info-file']) {
+      $project['yaml']['info-file'] = $infofile_override;
+    }
+  }
+  elseif (!empty($project['yaml']['info-file'])) {
+    // Allow the info-file to be overridden by the yaml-file.
+    $info_file = $project['dir'] . '/' . $project['yaml']['info-file'];
+  }
+  else {
+    // Fall back to the default info-file.
+    $info_file = $project['dir'] . '/' . $project['name'] . '.info';
+  }
 
   // Base for the yml and local patch.
   $aux_file_base = $project_name;
@@ -554,7 +585,10 @@ function _bandaid_validate_project($project_name = NULL) {
       }
     }
     if (!$core) {
-      throw new BandaidError('NO_INFO_FILE', dt('No info file in @path?', array('@path' => $project['dir'])));
+      throw new BandaidError('NO_INFO_FILE', dt('Could not find the info-file "@filename" in @path', array(
+        '@filename' => basename($info_file),
+        '@path' => $project['dir'],
+      )));
     }
   }
 
@@ -1167,4 +1201,28 @@ function _bandaid_ignore_callback_7($path) {
     }
   }
   return FALSE;
+}
+
+/**
+ * Writes the [projectname].yml file.
+ */
+function _bandaid_write_yaml($project) {
+  if (empty($project['yaml'])) {
+    return;
+  }
+
+  // Prepare the output.
+  $new_yaml = Yaml::dump($project['yaml'], 4, 2);
+
+  $current_yaml = FALSE;
+  // Get the current contents of the file.
+  if (file_exists($project['yaml_file'])) {
+    $current_yaml = Yaml::parse($project['yaml_file']);
+  }
+
+  // Write the yaml if we have any new content.
+  // Only switch to inline format at level 4.
+  if ($new_yaml != $current_yaml && !file_put_contents($project['yaml_file'], $new_yaml)) {
+    throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
+  }
 }
