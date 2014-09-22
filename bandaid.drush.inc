@@ -1208,7 +1208,9 @@ function _bandaid_ignore_callback_7($path) {
  */
 function _bandaid_write_yaml($project) {
   if (empty($project['yaml'])) {
-    return;
+    if (file_exists($project['yaml_file'])) {
+      unlink($project['yaml']);
+    }
   }
 
   // Prepare the output.
