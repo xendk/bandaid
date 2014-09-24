@@ -18,6 +18,7 @@ use Unish\UnitUnishTestCase;
  * Deployotron testing class.
  */
 class BandaidFunctionalTestCase extends CommandUnishTestCase {
+  const EXIT_CODE_DIFF_DETECTED = 1;
   /**
    * Setup before running any tests.
    */
@@ -106,7 +107,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
 
     // Do a diff an check that it's the expected, and that the files haven't
     // changed.
-    $this->drush('bandaid-diff', array('panels'), array(), NULL, $workdir);
+    $this->drush('bandaid-diff', array('panels'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
@@ -184,7 +185,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     // Do a diff to a file and check that it is as expected and the files
     // haven't changed..
     $diff_file = tempnam($workdir, 'patch_');
-    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir);
+    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
 
@@ -438,7 +439,7 @@ EOF;
     // Do a diff to a file and check that it is as expected and the files
     // haven't changed..
     $diff_file = tempnam($workdir, 'patch_');
-    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir);
+    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
 
@@ -509,7 +510,7 @@ EOF;
 
     // Do a diff an check that it's the expected, and that the files haven't
     // changed.
-    $this->drush('bandaid-diff', array(), array(), NULL, $drupal_dir);
+    $this->drush('bandaid-diff', array(), array(), NULL, $drupal_dir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
     $this->assertNotEmpty($this->grep($patch1_string, $drupal_dir . '/MAINTAINERS.txt'));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $drupal_dir . '/modules/user/user.module'));
@@ -543,6 +544,28 @@ EOF;
     // Check that our "module" still exists.
     $this->assertFileExists($drupal_dir . '/sites/all/modules/banana');
     $this->assertFileContains($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
+  }
+
+  /**
+   * Check that bandaid-diff exists with correct exit codes.
+   *
+   * We expect 0 at no diff and 1 when a difference exists.
+   */
+  function testDiffExitcode(){
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
+
+    // Check that a diff on a clean download returns with an exit-code of 0.
+    $this->drush('bandaid-diff', array('exif_custom'), array(), NULL, $workdir, self::EXIT_SUCCESS);
+
+    // Do a quick local modification.
+    $content = file_get_contents($workdir . '/exif_custom/exif_custom.module');
+    $content = "\$var = \"Local modification.\";   \n" . $content;
+    file_put_contents($workdir . '/exif_custom/exif_custom.module', $content);
+
+    // Check that we get an exit-code of 1 (EXIT_CODE_DIFF_DETECTED) when we
+    // have a diff.
+    $this->drush('bandaid-diff', array('exif_custom'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
   }
 
   /**
