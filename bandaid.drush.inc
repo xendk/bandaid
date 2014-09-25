@@ -398,11 +398,17 @@ function drush_bandaid_diff($project = NULL, $file = NULL) {
     chdir($checkout_dir);
     // Return to a pristine checkout.
     Git::checkout($checkout_ref);
-    $filename = drush_save_data_to_temp_file($patch);
-    if (!Git::applyCheck($filename, 1)) {
-      drush_log(dt('Patch does not apply cleanly to base revision.'), 'warning');
-    }
 
+    if (!empty($patch)) {
+      // Re-apply any local changes.
+      $filename = drush_save_data_to_temp_file($patch);
+      if (!Git::applyCheck($filename, 1)) {
+        drush_log(dt('Patch does not apply cleanly to base revision.'), 'warning');
+      }
+
+      // We had changes, indicate it via exit-code.
+      drush_set_context('DRUSH_ERROR_CODE', 1);
+    }
   }
   catch (BandaidError $e) {
     return $e->drushSetError();

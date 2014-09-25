@@ -126,7 +126,7 @@ class Git {
    * Commit changes.
    */
   public static function commit($message) {
-    return static::exec('git commit -m %s', array($message), 'CANNOT_COMMIT');
+    return static::exec('git commit --allow-empty -m %s', array($message), 'CANNOT_COMMIT');
   }
 
   /**
