@@ -609,7 +609,7 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
   if ($core) {
     $major = explode('.', $core);
 
-    if ($major[0] != 7) {
+    if (!in_array($major[0], array(7, 8))) {
       throw new BandaidError('UNSUPPORTED_CORE', dt('Drupal @major not supported yet.', array('@major' => $major[0])));
     }
 
@@ -1224,6 +1224,38 @@ function _bandaid_ignore_callback_7($path) {
         isset($parts[3]) && $parts[3] != 'README.txt') {
         return TRUE;
       }
+      elseif ($parts[1] == 'default' && isset($parts[2]) && $parts[2] != 'default.settings.php') {
+        return TRUE;
+      }
+      elseif ($parts[1] == 'sites.php') {
+        return true;
+      }
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Ignore callback for Drupal 8.
+ */
+function _bandaid_ignore_callback_8($path) {
+  // When working with core, there's a good chance there's a .git folder in the
+  // root. It shouldn't be copied into the repo (that'll mess things up), but
+  // it's rather important to copy over.
+  if ($path == '.git') {
+    return TRUE;
+  }
+  if (preg_match('{^core\.(yml|local\.patch)$}', $path)) {
+    return TRUE;
+  }
+  $parts = explode('/', $path);
+  if (in_array($parts[0], array('modules', 'themes', 'profiles'))) {
+    if (isset($parts[1]) && $parts[1] == 'README.txt') {
+      return TRUE;
+    }
+  }
+  if ($parts[0] == 'sites') {
+    if (isset($parts[1])) {
       if ($parts[1] == 'default' && isset($parts[2]) && $parts[2] != 'default.settings.php') {
         return TRUE;
       }
