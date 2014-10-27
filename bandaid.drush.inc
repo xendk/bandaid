@@ -675,7 +675,7 @@ function _bandaid_parse_info($file) {
 function _bandaid_parse_version($version) {
   // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
   if (preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
-    if (empty($matches['minor'])) {
+    if (!isset($matches['minor']) || (strlen($matches['minor']) == 0)) {
       throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level is not supported.'));
     }
     $version_info = array(
