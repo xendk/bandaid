@@ -1236,6 +1236,16 @@ function _bandaid_ignore_callback_7($path) {
  * Writes the [projectname].yml file.
  */
 function _bandaid_write_yaml($project) {
+  // If the patches are empty, remove the empty array. Primarily to get the
+  // following check to delete the file if it would be totally empty, but also,
+  // in the case that there's other user added data that'll be written, to avoid
+  // an empty list in the YAML.
+  if (isset($project['yaml']['patches']) &&
+    empty($project['yaml']['patches'])) {
+    unset($project['yaml']['patches']);
+  }
+
+  // Delete the file if we have no content for it.
   if (empty($project['yaml'])) {
     if (file_exists($project['yaml_file'])) {
       unlink($project['yaml']);
