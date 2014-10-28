@@ -1248,7 +1248,7 @@ function _bandaid_write_yaml($project) {
   $current_yaml = FALSE;
   // Get the current contents of the file.
   if (file_exists($project['yaml_file'])) {
-    $current_yaml = Yaml::parse($project['yaml_file']);
+    $current_yaml = file_get_contents($project['yaml_file']);
   }
 
   // Write the yaml if we have any new content.
