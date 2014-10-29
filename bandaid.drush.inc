@@ -625,6 +625,22 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
 
     $aux_file_base = $project_name . '/core';
     $project['ignore_callback'] = '_bandaid_ignore_callback_' . $major[0];
+    if ($major[0] == 7) {
+      $project['ignores'] = array(
+        'core.yml',
+        'core.local.patch',
+        'sites/all/modules',
+        '!sites/all/modules/README.txt',
+        'sites/all/themes',
+        '!sites/all/themes/README.txt',
+        'sites/default',
+        '!sites/default/default.settings.php',
+        'profiles',
+        '!profiles/minimal',
+        '!profiles/standard',
+        '!profiles/testing',
+      );
+    }
   }
   else {
     try {
@@ -720,14 +736,6 @@ function _bandaid_clone_and_tearoff($project) {
   }
   Git::checkout($checkout_ref);
 
-  // Some have erroneously committed LICENSE.txt. Save the content and permisson
-  // for later so we can override the one coming from the local version.
-  $license_exists = file_exists('LICENSE.txt');
-  if ($license_exists) {
-    $license_perms = fileperms('LICENSE.txt');
-    $license = file_get_contents('LICENSE.txt');
-  }
-
   // Create patch branch.
   Git::branch('bandaid_patch');
 
@@ -743,21 +751,21 @@ function _bandaid_clone_and_tearoff($project) {
   // Copy the local project to the local branch.
   Git::checkout('bandaid_local');
 
-  // Clear out the files in the repo and copy in the files from the project.
-  _bandaid_replace_repo($checkout_dir, $project['dir'], $project);
-
-  // Bring the LICENSE back to the same state as after checking out. Would
-  // probably be better to use git update-index --assume-unchanged, but until
-  // there's a test case that demonstrate the failure of this, we'll let it be.
-  if (file_exists('LICENSE.txt')) {
-    if (!$license_exists) {
-      unlink('LICENSE.txt');
-    }
-    else {
-      file_put_contents('LICENSE.txt', $license);
-      chmod('LICENSE.txt', $license_perms);
-    }
+  // Add project ignore files.
+  if (!empty($project['ignores'])) {
+    Git::addIgnores($project['ignores']);
   }
+  // Add the local version.
+  Git::addFrom($project['dir'], '.', TRUE);
+
+  // Ignore any changes to LICENSE.txt. Drupal.org automatically adds it.
+  if (file_exists($project['dir'] . '/LICENSE.txt')) {
+    Git::reset(FALSE, 'LICENSE.txt');
+  }
+
+  // Update repo work tree to what we just added.
+  Git::checkout('.');
+
   _bandaid_fix_info_files($checkout_dir);
 
   Git::add('.', TRUE);
