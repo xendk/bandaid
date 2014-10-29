@@ -346,13 +346,25 @@ function drush_bandaid_tearoff($project = NULL) {
     }
     _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
 
-    _bandaid_move_ignored_files($project['dir'], $checkout_dir, $project);
-    chdir(dirname($project['dir']));
-    _bandaid_overwrite_project($checkout_dir, $project['dir']);
+    // Create a commit we can checkout.
+    Git::add('.');
+    Git::commit('Updated info.');
+    $sha = Git::sha();
+    if (empty($sha)) {
+      // Not much intelligent we can tell the user.
+      throw new BandaidError('ERROR_GETTING_SHA', dt('Internal Git error.'));
+    }
 
-    // Create local patch file. We're doing it this late so a patch file inside
-    // the project wont get lost by the moving of dirs. Core has the file inside
-    // the dir.
+    // Check out what we have locally, this means that Git is aware of the files
+    // in the local branch, and it can remove files that's been added locally.
+    Git::checkout('bandaid_local');
+
+    // Update the local files by making Git use it as work-tree, and checking
+    // out.
+    Git::resetTo($project['dir'], TRUE);
+    Git::checkoutTo($project['dir'], $sha);
+
+    // Create local patch file.
     if (!empty($patch)) {
       if (!file_put_contents($project['local_patch_file'], $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));

@@ -57,6 +57,14 @@ class Git {
   }
 
   /**
+   * Get the sha for the ref or HEAD.
+   */
+  public static function sha($ref = 'HEAD') {
+    $sha = static::exec('git rev-parse %s', array($ref));
+    return trim($sha[0]);
+  }
+
+  /**
    * Check if a patch will apply.
    *
    * @return bool
@@ -105,6 +113,13 @@ class Git {
    */
   public static function checkout($ref) {
     return static::exec('git checkout %s', array($ref), 'CANNOT_CHECKOUT');
+  }
+
+  /**
+   * Checkout branch/tag/sha to a work-tree.
+   */
+  public static function checkoutTo($work_tree, $ref) {
+    return static::exec('git --work-tree=%s checkout %s', array($work_tree, $ref), 'CANNOT_CHECKOUT');
   }
 
   /**
@@ -157,6 +172,17 @@ class Git {
     $hard = $hard ? '--hard' : '';
     // The double dash is rather important.
     return static::exec('git reset %s -- %s', array($hard, $path), 'CANNOT_RESET');
+  }
+
+  /**
+   * Reset workspace in another work-tree.
+   *
+   * @todo fix up the signature.
+   */
+  public static function resetTo($work_tree, $hard = FALSE, $path = '') {
+    $hard = $hard ? '--hard' : '';
+    // The double dash is rather important.
+    return static::exec('git --work-tree=%s reset %s -- %s', array($work_tree, $hard, $path), 'CANNOT_RESET');
   }
 
   /**
