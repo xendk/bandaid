@@ -470,24 +470,26 @@ function drush_bandaid_apply($project = NULL) {
     // Copy the local project to the local branch.
     Git::checkout('bandaid_local');
 
-    // Clear out the files in the repo and copy in the files from the project.
-    _bandaid_replace_repo($checkout_dir, $project['dir'], $project);
+    // Add project ignore files.
+    if (!empty($project['ignores'])) {
+      Git::addIgnores($project['ignores']);
+    }
+    // Add the local version.
+    Git::addFrom($project['dir'], '.', TRUE);
+
+    // Ignore any changes to LICENSE.txt. Drupal.org automatically adds it.
+    if (file_exists($project['dir'] . '/LICENSE.txt')) {
+      Git::reset(FALSE, 'LICENSE.txt');
+    }
+
+    // Update repo work tree to what we just added.
+    Git::checkout('.');
+
+    _bandaid_fix_info_files($checkout_dir);
 
     // Commit local version.
     Git::add('.', TRUE);
     Git::commit("Committing local.");
-
-    // d.o automatically adds the LICENSE.txt, so we remove it now, in order to
-    // not polute the diff, unless it *was* committed.
-    if (file_exists('LICENSE.txt')) {
-      if (!$license_exists) {
-        unlink('LICENSE.txt');
-      }
-      else {
-        chmod('LICENSE.txt', $license_perms);
-      }
-    }
-    _bandaid_fix_info_files($checkout_dir);
 
     // Create a diff to show the user.
     $patch = Git::diff($checkout_ref);
@@ -498,8 +500,16 @@ function drush_bandaid_apply($project = NULL) {
         return drush_user_abort();
       }
     }
+
     // Reset so we get the state back to the same as the local version.
     Git::reset(TRUE);
+
+    // Get the sha for the unmodified version. We'll need it later.
+    $sha = Git::sha();
+    if (empty($sha)) {
+      // Not much intelligent we can tell the user.
+      throw new BandaidError('ERROR_GETTING_SHA', dt('Internal Git error.'));
+    }
 
     // Apply patches to local branch.
     if (!empty($project['yaml']['patches'])) {
@@ -517,9 +527,16 @@ function drush_bandaid_apply($project = NULL) {
       }
     }
 
-    _bandaid_move_ignored_files($project['dir'], $checkout_dir, $project);
-    chdir(dirname($project['dir']));
-    _bandaid_overwrite_project($checkout_dir, $project['dir']);
+    // Create a commit we can checkout.
+    Git::add('.');
+    Git::commit('Added patches.');
+
+    // Check out the unmodified local version to the repo.
+    Git::checkout($sha);
+
+    // Update the local files by making Git use it as work-tree, and checking
+    // out.
+    Git::checkoutTo($project['dir'], 'bandaid_local');
 
     // If some patches were ignored, write new yaml file.
     if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
@@ -887,71 +904,6 @@ function _bandaid_clone($name, $repo, $path) {
 }
 
 /**
- * Replace the files of a repository with the content of a directory.
- */
-function _bandaid_replace_repo($repository, $source, $project) {
-  $ignore_files = array('.', '..', '.git');
-  foreach (drush_scan_directory($repository, '{.*}', $ignore_files, 0, FALSE, 'filename', 0, TRUE) as $file) {
-    drush_delete_dir($file->filename);
-  }
-  _bandaid_recusive_copy($source, $repository, $project);
-}
-
-/**
- * Copy recursively, but ignore certain file/dirs.
- *
- * Original lifted from _drush_recursive_copy().
- */
-function _bandaid_recusive_copy($src, $dest, $project, $base = NULL) {
-  if (!$base) {
-    $base = $src;
-  }
-
-  // Skip if the ignore_callback tells us too.
-  if (isset($project['ignore_callback'])) {
-    $function = $project['ignore_callback'];
-    $path = substr($src, strlen($base) + 1);
-    if ($function($path)) {
-      return TRUE;
-    }
-  }
-
-  if (is_dir($src)) {
-    if (!drush_mkdir($dest, TRUE)) {
-      return FALSE;
-    }
-    $dir_handle = opendir($src);
-    while ($file = readdir($dir_handle)) {
-      if ($file != "." && $file != "..") {
-        if (_bandaid_recusive_copy("$src/$file", "$dest/$file", $project, $base) !== TRUE) {
-          return FALSE;
-        }
-      }
-    }
-    closedir($dir_handle);
-  }
-  elseif (is_link($src)) {
-    symlink(readlink($src), $dest);
-  }
-  elseif (!(copy($src, $dest) && touch($dest, filemtime($src)))) {
-    return FALSE;
-  }
-
-  // Preserve execute permission.
-  if (!is_link($src) && !drush_is_windows()) {
-    // Get execute bits of $src.
-    $execperms = fileperms($src) & 0111;
-    // Apply execute permissions if any.
-    if ($execperms > 0) {
-      $perms = fileperms($dest) | $execperms;
-      chmod($dest, $perms);
-    }
-  }
-
-  return TRUE;
-}
-
-/**
  * Apply patches to project.
  *
  * @todo Handle local files.
@@ -1113,63 +1065,6 @@ function _bandaid_inject_info_file_metadata($project_dir, $project_name, $versio
       if (!drush_file_append_data($info_file->filename, $info)) {
         return FALSE;
       }
-    }
-  }
-  return TRUE;
-}
-
-/**
- * Overwrite project directory with our working directory.
- */
-function _bandaid_overwrite_project($work_dir, $project_dir) {
-  if (!drush_delete_dir($work_dir . '/.git')) {
-    throw new BandaidError('CANNOT_DELETE_GIT', dt('Error deleting .git directory in working directory.'));
-  }
-
-  if (!drush_move_dir($project_dir, $project_dir . '.old')) {
-    throw new BandaidError('CANNOT_MOVE', dt('Cannot move old project directory.'));
-  }
-
-  chdir(dirname($project_dir));
-  if (!drush_move_dir($work_dir, $project_dir)) {
-    throw new BandaidError('CANNOT_MOVE', dt('Cannot move working directory into place.'));
-  }
-  drush_register_file_for_deletion($project_dir . '.old');
-}
-
-/**
- * Copy in files previously ignored.
- *
- * @todo largely copied from _bandaid_recusive_copy(), be smarter about it.
- */
-function _bandaid_move_ignored_files($src, $dest, $project, $base = NULL) {
-  if (isset($project['ignore_callback'])) {
-    $function = $project['ignore_callback'];
-
-    if (!$base) {
-      $base = $src;
-    }
-
-    // Move the file/dir if the ignore callback tells us it was ignored.
-    if (isset($project['ignore_callback'])) {
-      $function = $project['ignore_callback'];
-      $path = substr($src, strlen($base) + 1);
-      if ($function($path)) {
-        rename($src, $dest);
-        return TRUE;
-      }
-    }
-
-    if (is_dir($src)) {
-      $dir_handle = opendir($src);
-      while ($file = readdir($dir_handle)) {
-        if ($file != "." && $file != "..") {
-          if (_bandaid_move_ignored_files("$src/$file", "$dest/$file", $project, $base) !== TRUE) {
-            return FALSE;
-          }
-        }
-      }
-      closedir($dir_handle);
     }
   }
   return TRUE;
