@@ -57,6 +57,14 @@ class Git {
   }
 
   /**
+   * Get the sha for the ref or HEAD.
+   */
+  public static function sha($ref = 'HEAD') {
+    $sha = static::exec('git rev-parse %s', array($ref));
+    return trim($sha[0]);
+  }
+
+  /**
    * Check if a patch will apply.
    *
    * @return bool
@@ -108,6 +116,13 @@ class Git {
   }
 
   /**
+   * Checkout branch/tag/sha to a work-tree.
+   */
+  public static function checkoutTo($work_tree, $ref) {
+    return static::exec('git --work-tree=%s checkout %s', array($work_tree, $ref), 'CANNOT_CHECKOUT');
+  }
+
+  /**
    * Create a branch.
    */
   public static function branch($name) {
@@ -120,6 +135,14 @@ class Git {
   public static function add($pattern, $all = FALSE) {
     $all = $all ? '--all' : '';
     return static::exec('git add %s %s', array($all, $pattern), 'CANNOT_ADD');
+  }
+
+  /**
+   * Add files to index, from another work-tree.
+   */
+  public static function addFrom($work_tree, $pattern, $all = FALSE) {
+    $all = $all ? '--all' : '';
+    return static::exec('git --work-tree=%s add %s %s', array($work_tree, $all, $pattern), 'CANNOT_ADD');
   }
 
   /**
@@ -142,10 +165,24 @@ class Git {
 
   /**
    * Reset workspace.
+   *
+   * @todo fix up the signature.
    */
-  public static function reset($hard = FALSE) {
+  public static function reset($hard = FALSE, $path = '') {
     $hard = $hard ? '--hard' : '';
-    return static::exec('git reset %s', array($hard), 'CANNOT_RESET');
+    // The double dash is rather important.
+    return static::exec('git reset %s -- %s', array($hard, $path), 'CANNOT_RESET');
+  }
+
+  /**
+   * Reset workspace in another work-tree.
+   *
+   * @todo fix up the signature.
+   */
+  public static function resetTo($work_tree, $hard = FALSE, $path = '') {
+    $hard = $hard ? '--hard' : '';
+    // The double dash is rather important.
+    return static::exec('git --work-tree=%s reset %s -- %s', array($work_tree, $hard, $path), 'CANNOT_RESET');
   }
 
   /**
@@ -170,5 +207,16 @@ class Git {
    */
   public static function remoteUpdate() {
     static::exec('git remote update', array(), 'ERROR_UPDATING');
+  }
+
+  /**
+   * Add ignores to repository.
+   */
+  public static function addIgnores($ignores) {
+    $exclude_file = '.git/info/exclude';
+    $existing_ignores = explode("\n", file_get_contents($exclude_file));
+    $ignores = array_merge($existing_ignores, $ignores);
+    array_unique($ignores);
+    file_put_contents($exclude_file, implode("\n", $ignores));
   }
 }
