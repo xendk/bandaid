@@ -167,50 +167,8 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     chdir($project['dir']);
 
-    if (preg_match('{drupal.org/node/\\d+(#comment-(\\d+))?}', $patch, $rx)) {
-      drush_log(dt("Looks like a Drupal issue url, looking for patches."), 'status');
-      $patches = _bandaid_get_patches_from_issue($patch);
-      if (empty($patches)) {
-        throw new BandaidError('NO_PATCH', dt('No patches found on issue.'));
-      }
-
-      // If the URL points to a comment, try to find that specific patch.
-      if (!empty($rx[2])) {
-        if (isset($patches[$rx[2]])) {
-          $selected_patch = $patches[$rx[2]];
-        }
-        else {
-          throw new BandaidError('NO_PATCH', dt('No patch found on comment @cid.', array('@cid' => $rx[2])));
-        }
-      }
-      else {
-        if (count($patches) > 1) {
-          $options = array();
-          foreach ($patches as $issue_patch) {
-            $options[$issue_patch['cid']] = '#' . $issue_patch['num'] . ' ' . $issue_patch['href'];
-          }
-          $selected = drush_choice($options, dt("Please select patch."));
-          if (isset($patches[$selected])) {
-            $selected_patch = $patches[$selected];
-          }
-          else {
-            return drush_user_abort();
-          }
-        }
-        else {
-          drush_log(dt("Found one patch."), 'status');
-          $selected_patch = reset($patches);
-        }
-      }
-
-      if ($selected_patch) {
-        // Use the issue URL as home, if it is not already set.
-        if (!drush_get_option('home', NULL)) {
-          drush_set_option('home', $patch);
-        }
-        $patch = $selected_patch['href'];
-      }
-    }
+    // Translate to patch URL if pointing at an issue.
+    $patch = _bandaid_patch_from_issue($patch);
 
     $filename = _bandaid_download_file($patch);
 
@@ -660,6 +618,58 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
   }
 
   return $project;
+}
+
+/**
+ * Get a patch from an d.o issue.
+ */
+function _bandaid_patch_from_issue($url) {
+  if (preg_match('{drupal.org/node/\\d+(#comment-(\\d+))?}', $url, $rx)) {
+    drush_log(dt("Looks like a Drupal issue url, looking for patches."), 'status');
+    $patches = _bandaid_get_patches_from_issue($url);
+    if (empty($patches)) {
+      throw new BandaidError('NO_PATCH', dt('No patches found on issue.'));
+    }
+
+    // If the URL points to a comment, try to find that specific patch.
+    if (!empty($rx[2])) {
+      if (isset($patches[$rx[2]])) {
+        $selected_patch = $patches[$rx[2]];
+      }
+      else {
+        throw new BandaidError('NO_PATCH', dt('No patch found on comment @cid.', array('@cid' => $rx[2])));
+      }
+    }
+    else {
+      if (count($patches) > 1) {
+        $options = array();
+        foreach ($patches as $issue_patch) {
+          $options[$issue_patch['cid']] = '#' . $issue_patch['num'] . ' ' . $issue_patch['href'];
+        }
+        $selected = drush_choice($options, dt("Please select patch."));
+        if (isset($patches[$selected])) {
+          $selected_patch = $patches[$selected];
+        }
+        else {
+          return drush_user_abort();
+        }
+      }
+      else {
+        drush_log(dt("Found one patch."), 'status');
+        $selected_patch = reset($patches);
+      }
+    }
+
+    if ($selected_patch) {
+      // Use the issue URL as home, if it is not already set.
+      if (!drush_get_option('home', NULL)) {
+        drush_set_option('home', $url);
+      }
+      $url = $selected_patch['href'];
+    }
+  }
+
+  return $url;
 }
 
 /**
