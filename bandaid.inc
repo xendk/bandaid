@@ -148,8 +148,9 @@ class Git {
   /**
    * Commit changes.
    */
-  public static function commit($message) {
-    return static::exec('git commit --allow-empty -m %s', array($message), 'CANNOT_COMMIT');
+  public static function commit($message, $allow_empty = FALSE) {
+    $allow_empty = $allow_empty ? '--allow-empty' : '';
+    return static::exec('git commit %s -m %s', array($allow_empty, $message), 'CANNOT_COMMIT');
   }
 
   /**

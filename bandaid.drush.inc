@@ -417,7 +417,7 @@ function drush_bandaid_apply($project = NULL) {
 
     // Commit local version.
     Git::add('.', TRUE);
-    Git::commit("Committing local.");
+    Git::commit("Committing local.", TRUE);
 
     // Create a diff to show the user.
     $patch = Git::diff($checkout_ref);
@@ -449,15 +449,14 @@ function drush_bandaid_apply($project = NULL) {
       if (Git::apply($project['local_patch_file'])) {
         drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
         unlink($project['local_patch_file']);
+        // Create a commit we can checkout.
+        Git::add('.');
+        Git::commit('Added local patch.');
       }
       else {
         drush_log(dt('Error applying local patch. Please apply it manually.'), 'error');
       }
     }
-
-    // Create a commit we can checkout.
-    Git::add('.');
-    Git::commit('Added patches.');
 
     // Check out the unmodified local version to the repo.
     Git::checkout($sha);
@@ -778,7 +777,7 @@ function _bandaid_clone_and_tearoff($project) {
   _bandaid_fix_info_files($checkout_dir);
 
   Git::add('.', TRUE);
-  Git::commit("Committing local.");
+  Git::commit("Committing local.", TRUE);
 
   // Create local patch.
   $patch = Git::diff('bandaid_patch', 'bandaid_local');
