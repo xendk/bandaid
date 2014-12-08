@@ -212,39 +212,9 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
       }
     }
 
-    // @todo this was wholesomely copied and adjusted from _bandaid_patch, need
-    // to refactor things together again.
     $filename = _bandaid_download_file($patch);
-    $patched = FALSE;
-    $output = '';
-    // Test each patch style; -p1 is the default with git. See
-    // http://drupal.org/node/1054616
-    $patch_levels = array(1, 0);
-    foreach ($patch_levels as $patch_level) {
-      $checked = Git::applyCheck($filename, $patch_level);
-      if ($checked) {
-        // Apply the first successful style.
-        $patched = Git::apply($patch_level, $filename);
-        break;
-      }
-    }
 
-    // In some rare cases, git will fail to apply a patch, fallback to using
-    // the 'patch' command.
-    if (!$patched) {
-      foreach ($patch_levels as $patch_level) {
-        // --no-backup-if-mismatch here is a hack that fixes some
-        // differences between how patch works on windows and unix.
-        if ($patched = drush_shell_exec("patch -p%s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
-          break;
-        }
-      }
-    }
-
-    if ($output = drush_shell_exec_output()) {
-      // Log any command output, visible only in --verbose or --debug mode.
-      drush_log(implode("\n", $output));
-    }
+    $patched = _bandaid_attempt_patch($filename);
 
     if (!$patched) {
       throw new BandaidError('PATCHING_FAILED', dt('Could not apply patch.'));
@@ -904,6 +874,45 @@ function _bandaid_clone($name, $repo, $path) {
 }
 
 /**
+ * Attempt to patch with either git or patch.
+ *
+ * Will output the command output in verbose mode.
+ */
+function _bandaid_attempt_patch($filename) {
+  $patched = FALSE;
+  // Test each patch style; -p1 is the default with git. See
+  // http://drupal.org/node/1054616
+  $patch_levels = array(1, 0);
+  foreach ($patch_levels as $patch_level) {
+    $checked = Git::applyCheck($filename, $patch_level);
+    if ($checked) {
+      // Apply the first successful style.
+      $patched = Git::apply($filename, $patch_level);
+      break;
+    }
+  }
+
+  // In some rare cases, git will fail to apply a patch, fallback to using
+  // the 'patch' command.
+  if (!$patched) {
+    foreach ($patch_levels as $patch_level) {
+      // --no-backup-if-mismatch here is a hack that fixes some
+      // differences between how patch works on windows and unix.
+      if ($patched = drush_shell_exec("patch -p%s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
+        break;
+      }
+    }
+  }
+
+  if ($output = drush_shell_exec_output()) {
+    // Log any command output, visible only in --verbose or --debug mode.
+    drush_log(implode("\n", $output));
+  }
+
+  return $patched;
+}
+
+/**
  * Apply patches to project.
  *
  * @todo Handle local files.
@@ -913,42 +922,13 @@ function _bandaid_patch($patches) {
   foreach ($patches as $patch) {
     // Download the patch.
     $filename = _bandaid_download_file($patch['patch']);
-    $patched = FALSE;
-    $output = '';
 
     // Set up string placeholders to pass to dt().
     $dt_args = array(
       '@filename' => basename($filename),
     );
 
-    // Test each patch style; -p1 is the default with git. See
-    // http://drupal.org/node/1054616
-    $patch_levels = array(1, 0);
-    foreach ($patch_levels as $patch_level) {
-      $checked = Git::applyCheck($filename, $patch_level);
-      if ($checked) {
-        // Apply the first successful style.
-        $patched = Git::apply($filename, $patch_level);
-        break;
-      }
-    }
-
-    // In some rare cases, git will fail to apply a patch, fallback to using
-    // the 'patch' command.
-    if (!$patched) {
-      foreach ($patch_levels as $patch_level) {
-        // --no-backup-if-mismatch here is a hack that fixes some
-        // differences between how patch works on windows and unix.
-        if ($patched = drush_shell_exec("patch -p%s --no-backup-if-mismatch < %s", $patch_level, $filename)) {
-          break;
-        }
-      }
-    }
-
-    if ($output = drush_shell_exec_output()) {
-      // Log any command output, visible only in --verbose or --debug mode.
-      drush_log(implode("\n", $output));
-    }
+    $patched = _bandaid_attempt_patch($filename);
 
     if ($patched) {
       $processed_patches[] = $patch;
