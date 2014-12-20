@@ -37,7 +37,7 @@ function bandaid_drush_command() {
     'description' => 'Add a patch.',
     'arguments' => array(
       'patch' => 'URL of patch to apply.',
-      'project' => 'Path to project to patch. If left out, current dir is pactched.',
+      'project' => 'Path to project to patch. If left out, current dir is patched.',
     ),
     'options' => array(
       'home' => 'URL of issue.',
