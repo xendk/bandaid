@@ -580,7 +580,6 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
     );
 
     $aux_file_base = $project_name . '/core';
-    $project['ignore_callback'] = '_bandaid_ignore_callback_' . $major[0];
     if ($major[0] == 7) {
       $project['ignores'] = array(
         'core.yml',
@@ -1099,41 +1098,6 @@ function _bandaid_get_patches_from_issue($url) {
   }
   ksort($return);
   return $return;
-}
-
-/**
- * Ignore callback for Drupal 7.
- */
-function _bandaid_ignore_callback_7($path) {
-  // When working with core, there's a good chance there's a .git folder in the
-  // root. It shouldn't be copied into the repo (that'll mess things up), but
-  // it's rather important to copy over.
-  if ($path == '.git') {
-    return TRUE;
-  }
-  if (preg_match('{^core\.(yml|local\.patch)$}', $path)) {
-    return TRUE;
-  }
-  $parts = explode('/', $path);
-  if ($parts[0] == 'profile') {
-    $standard_profiles = array('minimal', 'standard', 'testing');
-    if (isset($parts[1]) && !in_array($parts[1], $standard_profiles)) {
-      return TRUE;
-    }
-  }
-  if ($parts[0] == 'sites') {
-    if (isset($parts[1])) {
-      if ($parts[1] == 'all' &&
-        isset($parts[2]) && in_array($parts[2], array('modules', 'themes')) &&
-        isset($parts[3]) && $parts[3] != 'README.txt') {
-        return TRUE;
-      }
-      if ($parts[1] == 'default' && isset($parts[2]) && $parts[2] != 'default.settings.php') {
-        return TRUE;
-      }
-    }
-  }
-  return FALSE;
 }
 
 /**
