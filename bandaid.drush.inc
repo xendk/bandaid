@@ -93,6 +93,15 @@ function bandaid_drush_command() {
     'aliases' => array('ba'),
   );
 
+  $items['bandaid-degit'] = array(
+    'description' => 'De-Git a project.',
+    'arguments' => array(
+      'project' => 'Path to project to De-Git. If left out, current dir is used.',
+    ),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'aliases' => array('bdg'),
+  );
+
   return $items;
 }
 
@@ -140,6 +149,16 @@ function bandaid_drush_help($section) {
         '',
         dt('Reapplies the patches from the <project.yml> file and any found
 <project>.local.patch file to the project.'),
+      );
+      break;
+
+    case 'drush:bandaid-degit':
+      $help = array(
+        dt('De-Git project.'),
+        '',
+        dt('Makes a note of the repository origin and checked out revision in the YAML file, and deletes the .git directory.'),
+        '',
+        dt('This is handy for committing projects not from Drupal.org.'),
       );
       break;
   }
@@ -478,6 +497,49 @@ function drush_bandaid_apply($project = NULL) {
 }
 
 /**
+ * Command callback.
+ *
+ * De-Git a project.
+ */
+function drush_bandaid_degit($project = NULL) {
+  try {
+    _bandaid_check_php_version();
+
+    // Get the project, allow for info-file override.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL), TRUE);
+
+    chdir($project['dir']);
+
+    if (!file_exists('.git')) {
+      throw new BandaidError('NOT_A_REPOSITORY', dt('@path is not a Git repository.', array('@path' => $project ? $project : basename(cwd()))));
+    }
+
+    $project['yaml']['project'] = array(
+      'type' => 'git',
+      'origin' => Git::origin(),
+      'revision' => Git::sha(),
+    );
+
+    drush_log(dt('This will lose stashes and non-pushed commits/branches from this checkout.'), 'warning');
+
+    if (!drush_confirm('Continue anyway?')) {
+      return drush_user_abort();
+    }
+
+    // Write the YAML file.
+    drush_op('_bandaid_write_yaml', $project);
+    drush_print(getcwd());
+    drush_op('drush_delete_dir', '.git', TRUE);
+    if (file_exists('.git')) {
+      throw new BandaidError('COULD_NOT_DELETE', dt("Couldn't delete .git dir. Check the permissions?"));
+    }
+  }
+  catch (BandaidError $e) {
+    return $e->drushSetError();
+  }
+}
+
+/**
  * Check that PHP is high enough a version.
  */
 function _bandaid_check_php_version() {
@@ -495,7 +557,7 @@ function _bandaid_check_php_version() {
  *
  * If project not given, try the current dir.
  */
-function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL) {
+function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL, $dont_validate_info = FALSE) {
   if (!$project_name) {
     $project_name = getcwd();
   }
@@ -598,11 +660,13 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
     }
   }
   else {
-    try {
-      $project['version_info'] = _bandaid_parse_info($info_file);
-    }
-    catch (BandaidError $e) {
-      throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
+    if (!$dont_validate_info) {
+      try {
+        $project['version_info'] = _bandaid_parse_info($info_file);
+      }
+      catch (BandaidError $e) {
+        throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
+      }
     }
   }
   $project['local_patch_file'] = $aux_file_base . '.local.patch';

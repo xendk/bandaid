@@ -13,6 +13,9 @@ if (class_exists('Drush_CommandTestCase', FALSE)) {
 
 use Unish\CommandUnishTestCase;
 use Unish\UnitUnishTestCase;
+// Drush should supply this one.
+use Symfony\Component\Yaml\Yaml;
+
 
 /**
  * Deployotron testing class.
@@ -251,7 +254,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     chdir('snapengage');
     // This is a commit 2 commits after the 7.x-1.1 release.
     $this->execute('git checkout 05fe01719cc07cbad6e9e19d123055dae3b435ed');
-    // Ungittyfy.
+    // Un-gittify.
     exec('rm -rf .git');
 
     // Fudge the info file.
@@ -351,6 +354,33 @@ EOF;
   }
 
   /**
+   * Test that degit works.
+   */
+  public function testDegit() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $cwd = getcwd();
+    chdir($workdir);
+    $this->execute('git clone http://git.drupal.org/project/virtual_field.git');
+    chdir('virtual_field');
+    // Check out some revision.
+    $this->execute('git checkout f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6');
+    chdir($workdir);
+
+    $this->drush('bandaid-degit', array('virtual_field'), array('y' => TRUE), NULL, $workdir);
+    // The YAML file should have been created.
+    $this->assertTrue(file_exists('virtual_field.yml'));
+    $yaml = Yaml::parse('virtual_field.yml');
+
+
+    $this->assertEquals('git', $yaml['project']['type']);
+    $this->assertEquals('http://git.drupal.org/project/virtual_field.git', $yaml['project']['origin']);
+    $this->assertEquals('f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6', $yaml['project']['revision']);
+
+    // Ensure that the git dir has been removed.
+    $this->assertFalse(file_exists('virtual_field/.git'));
+  }
+
+  /**
    * Test non-default branch handling.
    *
    * Regression test. Releases on the non default branch tripped up tearoff, as
@@ -367,7 +397,7 @@ EOF;
     chdir('ultimate_cron');
     // This is a commit 2 commits after the 7.x-1.9 release.
     $this->execute('git checkout 286b82bcd00734324cc85098a494f5335f73d17e');
-    // Ungittyfy.
+    // Un-gittify.
     exec('rm -rf .git');
 
     // Fudge the info file.

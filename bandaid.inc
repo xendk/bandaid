@@ -65,6 +65,26 @@ class Git {
   }
 
   /**
+   * Get the origin.
+   *
+   * Attempts to tease out the origin of git remote -v.
+   */
+  public static function origin() {
+    $lines = static::exec('git remote -v');
+    $origin = NULL;
+    foreach ($lines as $line) {
+      if (preg_match('{^origin\s+(.*)\s+\(push\)$}', $line, $matches)) {
+        $origin = $matches[1];
+      }
+    }
+
+    if (!$origin) {
+      throw new BandaidError(CANNOT_FIND_ORIGIN, 'Cannot figure out origin. Sorry.');
+    }
+    return $origin;
+  }
+
+  /**
    * Check if a patch will apply.
    *
    * @return bool
