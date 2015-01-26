@@ -102,6 +102,19 @@ function bandaid_drush_command() {
     'aliases' => array('bdg'),
   );
 
+  $items['bandaid-regit'] = array(
+    'description' => 'Re-Git a project.',
+    'arguments' => array(
+      'project' => 'Path to project to Re-Git. If left out, current dir is used.',
+    ),
+    'options' => array(
+      'origin' => 'Repository URL, overrides repository from YAML file.',
+      'revision' => 'Revision, overrides repository from YAML file.',
+    ),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'aliases' => array('brg'),
+  );
+
   return $items;
 }
 
@@ -159,6 +172,16 @@ function bandaid_drush_help($section) {
         dt('Makes a note of the repository origin and checked out revision in the YAML file, and deletes the .git directory.'),
         '',
         dt('This is handy for committing projects not from Drupal.org.'),
+      );
+      break;
+
+    case 'drush:bandaid-regit':
+      $help = array(
+        dt('Re-Git project.'),
+        '',
+        dt('Makes the project a git checkout.'),
+        '',
+        dt('Handy for pushing local changes to the project upstream.'),
       );
       break;
   }
@@ -528,11 +551,64 @@ function drush_bandaid_degit($project = NULL) {
 
     // Write the YAML file.
     drush_op('_bandaid_write_yaml', $project);
-    drush_print(getcwd());
     drush_op('drush_delete_dir', '.git', TRUE);
     if (file_exists('.git')) {
       throw new BandaidError('COULD_NOT_DELETE', dt("Couldn't delete .git dir. Check the permissions?"));
     }
+  }
+  catch (BandaidError $e) {
+    return $e->drushSetError();
+  }
+}
+
+/**
+ * Command callback.
+ *
+ * Re-Git a project.
+ */
+function drush_bandaid_regit($project = NULL) {
+  try {
+    _bandaid_check_php_version();
+
+    // Get the project, allow for info-file override.
+    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL), TRUE);
+
+    chdir($project['dir']);
+
+    if (file_exists('.git')) {
+      throw new BandaidError('ALREADY_A_REPOSITORY', dt('@path is already a Git repository.', array('@path' => $project ? $project : basename(cwd()))));
+    }
+
+    $origin = $revision = NULL;
+    if (isset($project['yaml']['project']['type']) &&
+      $project['yaml']['project']['type']) {
+      if (!empty($project['yaml']['project']['origin'])) {
+        $origin = $project['yaml']['project']['origin'];
+      }
+      if (!empty($project['yaml']['project']['revision'])) {
+        $revision = $project['yaml']['project']['revision'];
+      }
+    }
+
+    $origin = drush_get_option('origin', $origin);
+    $revision = drush_get_option('revision', $revision);
+
+    if (empty($origin)) {
+      throw new BandaidError('NO_ORIGIN', dt('No repository URL either in YAML file or from comman line.'));
+    }
+    if (empty($revision)) {
+      throw new BandaidError('NO_REVISION', dt('No revision either in YAML file or from comman line.'));
+    }
+
+    // Clone into a temporary
+    $checkout_dir = _bandaid_tmpdir();
+    !_bandaid_clone($project['name'], $origin, $checkout_dir);
+    drush_register_file_for_deletion(realpath($checkout_dir));
+
+    chdir($checkout_dir);
+    Git::checkout($revision);
+
+    rename(realpath($checkout_dir . '/.git'), realpath($project['dir']) . '/.git');
   }
   catch (BandaidError $e) {
     return $e->drushSetError();

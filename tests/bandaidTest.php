@@ -378,6 +378,50 @@ EOF;
 
     // Ensure that the git dir has been removed.
     $this->assertFalse(file_exists('virtual_field/.git'));
+    chdir($cwd);
+  }
+
+  /**
+   * Test that regit works.
+   */
+  public function testRegit() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $cwd = getcwd();
+    chdir($workdir);
+    $this->execute('git clone http://git.drupal.org/project/virtual_field.git');
+    chdir('virtual_field');
+    // Check out some revision.
+    $this->execute('git checkout f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6');
+
+    // Ungit it.
+    exec('rm -rf .git');
+
+    // Ensure that the git dir has been removed.
+    $this->assertFalse(file_exists('virtual_field/.git'));
+
+    chdir($workdir);
+
+    // Should fail when it has no idea what the repo/revision is.
+    $this->drush('bandaid-regit', array('virtual_field'), array('y' => TRUE), NULL, $workdir, self::EXIT_ERROR);
+
+    $this->drush('bandaid-regit', array('virtual_field'), array('y' => TRUE, 'origin' => 'http://git.drupal.org/project/virtual_field.git', 'revision' => 'f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6'), NULL, $workdir);
+
+    // Check that the .git dir exists.
+    $this->assertTrue(file_exists('virtual_field/.git'));
+
+    // The YAML file shouldn't have been created.
+    $this->assertFalse(file_exists('virtual_field.yml'));
+
+    $this->drush('bandaid-degit', array('virtual_field'), array('y' => TRUE), NULL, $workdir);
+    // Check that the .git dir have been removed.
+    $this->assertFalse(file_exists('virtual_field/.git'));
+
+    $this->drush('bandaid-regit', array('virtual_field'), array('y' => TRUE, 'origin' => 'http://git.drupal.org/project/virtual_field.git', 'revision' => 'f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6'), NULL, $workdir);
+
+    // Check that the .git dir exists.
+    $this->assertTrue(file_exists('virtual_field/.git'));
+
+    chdir($cwd);
   }
 
   /**
