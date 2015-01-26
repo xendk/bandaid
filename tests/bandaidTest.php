@@ -625,7 +625,7 @@ EOF;
    *
    * We expect 0 at no diff and 1 when a difference exists.
    */
-  function testDiffExitcode(){
+  public function testDiffExitcode(){
     $workdir = $this->webroot() . '/sites/all/modules';
     $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
 
