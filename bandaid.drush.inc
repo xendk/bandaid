@@ -45,7 +45,7 @@ function bandaid_drush_command() {
       'editor' => 'Editor command to use for reason if not given by --reason',
       'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
-      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
+      'info-file' => "Info file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bp'),
@@ -59,7 +59,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
-      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
+      'info-file' => "Info file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bd'),
@@ -72,7 +72,7 @@ function bandaid_drush_command() {
     ),
     'options' => array(
       'no-cache' => "Don't use patch download and git repo cache.",
-      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
+      'info-file' => "Info file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bt'),
@@ -87,7 +87,7 @@ function bandaid_drush_command() {
       'no-cache' => "Don't use patch download and git repo cache.",
       'ignore-failing' => "Skip patches that fails to apply.",
       'update-yaml' => "Remove failed patches from YAML file.",
-      'info-file' => "Info-file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
+      'info-file' => "Info file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('ba'),
@@ -200,7 +200,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     _bandaid_check_php_version();
 
-    // Get the project, allow for info-file override.
+    // Get the project, allow for info file override.
     $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
     if (empty($project['yaml'])) {
       $project['yaml'] = array(
@@ -266,7 +266,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
 
     $project['yaml']['patches'][] = $new_patch;
 
-    // Make sure the yaml-file is up to date.
+    // Make sure the yaml file is up to date.
     _bandaid_write_yaml($project);
   }
   catch (BandaidError $e) {
@@ -283,7 +283,7 @@ function drush_bandaid_tearoff($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    // Get the project, allow for info-file override.
+    // Get the project, allow for info file override.
     $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
 
     chdir(dirname($project['dir']));
@@ -340,7 +340,7 @@ function drush_bandaid_tearoff($project = NULL) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
       }
 
-      // Make sure the yaml-file is up to date.
+      // Make sure the yaml file is up to date.
       _bandaid_write_yaml($project);
     }
   }
@@ -528,7 +528,7 @@ function drush_bandaid_degit($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    // Get the project, allow for info-file override.
+    // Get the project, allow for info file override.
     $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL), TRUE);
 
     chdir($project['dir']);
@@ -570,7 +570,7 @@ function drush_bandaid_regit($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    // Get the project, allow for info-file override.
+    // Get the project, allow for info file override.
     $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL), TRUE);
 
     chdir($project['dir']);
@@ -648,27 +648,27 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
     'yaml' => NULL,
   );
 
-  // Pull in the project yaml-file.
+  // Pull in the project yaml file.
   $project['yaml_file'] = $project['dir'] . '.yml';
   if (file_exists($project['yaml_file'])) {
     $project['yaml'] = Yaml::parse($project['yaml_file']);
   }
 
   if (!empty($infofile_override)) {
-    // Allow the info-file to be overriden at runtime.
+    // Allow the info file to be overriden at runtime.
     $info_file = $project['dir'] . '/' . $infofile_override;
 
-    // Update the entry in the yaml-data.
+    // Update the entry in the yaml data.
     if (empty($project['yaml']['info-file']) || $infofile_override != $project['yaml']['info-file']) {
       $project['yaml']['info-file'] = $infofile_override;
     }
   }
   elseif (!empty($project['yaml']['info-file'])) {
-    // Allow the info-file to be overridden by the yaml-file.
+    // Allow the info file to be overridden by the yaml file.
     $info_file = $project['dir'] . '/' . $project['yaml']['info-file'];
   }
   else {
-    // Fall back to the default info-file.
+    // Fall back to the default info file.
     $info_file = $project['dir'] . '/' . $project['name'] . '.info';
   }
 
@@ -693,7 +693,7 @@ function _bandaid_validate_project($project_name = NULL, $infofile_override = NU
       }
     }
     if (!$core) {
-      throw new BandaidError('NO_INFO_FILE', dt('Could not find the info-file "@filename" in @path', array(
+      throw new BandaidError('NO_INFO_FILE', dt('Could not find the info file "@filename" in @path', array(
         '@filename' => basename($info_file),
         '@path' => $project['dir'],
       )));
