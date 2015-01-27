@@ -455,6 +455,8 @@ function drush_bandaid_apply($project = NULL) {
     // Update repo work tree to what we just added.
     Git::checkout('.');
 
+    // Remove extra info added by drupal.org/drush/ourselves from the info
+    // files, to not pollute diff.
     _bandaid_fix_info_files($checkout_dir);
 
     // Commit local version.
@@ -1145,7 +1147,7 @@ function _bandaid_fix_info_files($dir) {
     for ($i = count($lines) - 1; $i > -1; $i--) {
       // The \s+ gobbles up both drushs 2 spaces and d.o and our one. Seems d.o
       // fixed their capitalization at some point.
-      if (preg_match('/;\s+Information added by ([Dd]rupal.org|bandaid|drush).*$/', $lines[$i], $matches)) {
+      if (preg_match('/^;\s+Information added by .* packaging script/', $lines[$i], $matches)) {
         break;
       }
     }
