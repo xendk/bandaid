@@ -413,7 +413,7 @@ function drush_bandaid_apply($project = NULL) {
     // Clone repo.
     drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
     $checkout_dir = _bandaid_tmpdir();
-    !_bandaid_clone($project['version_info']['project'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
+    !_bandaid_clone($project['version_info']['project'], _bandaid_origin_from_info($project['version_info']), $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
 
     chdir($checkout_dir);
@@ -871,7 +871,7 @@ function _bandaid_clone_and_tearoff($project) {
   // Clone repo.
   drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
   $checkout_dir = _bandaid_tmpdir();
-  _bandaid_clone($project['version_info']['project'], 'http://git.drupal.org/project/' . $project['version_info']['project'], $checkout_dir);
+  _bandaid_clone($project['version_info']['project'], _bandaid_origin_from_info($project['version_info']), $checkout_dir);
   drush_register_file_for_deletion($checkout_dir);
 
   chdir($checkout_dir);
@@ -938,6 +938,13 @@ function _bandaid_tmpdir() {
   }
   drush_register_file_for_deletion($tmp_dir);
   return $tmp_dir;
+}
+
+/**
+ * Return the git origin for a project, from info file.
+ */
+function _bandaid_origin_from_info($version_info) {
+  return 'http://git.drupal.org/project/' . $version_info['project'];
 }
 
 /**
