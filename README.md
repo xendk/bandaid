@@ -157,6 +157,33 @@ you've not left a mess for the next poor soul to come along, commit
 your changes (to a temporary branch, if you prefer), and try running
 bandaid-tearoff, and see if the local patch looks sane.
 
+### De-gitting ###
+
+    drush bandaid-degit [project path]
+
+Example:
+
+    drush bandaid-degit custom_module
+
+If you have a project that is a git checkout, this command will make a
+note of the origin repository and the checked out revision in the YAML
+file.
+
+### Re-gitting ###
+
+    drush bandaid-regit [project path]
+
+Example:
+
+    drush bandaid-regit custom_module
+
+Will turn a project into a git repository. The origin and revision is
+either read from the YAML file (where bandaid-degit put it), or can be
+supplied with the `--origin` ande `--revision` command line options.
+
+This is handy for pushing changes upstream or updating projects
+downloaded via git.
+
 In closing
 ----------
 
