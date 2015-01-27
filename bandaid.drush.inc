@@ -1145,8 +1145,8 @@ function _bandaid_fix_info_files($dir) {
     $content = file_get_contents($info_file->filename);
     $lines = explode("\n", $content);
     for ($i = count($lines) - 1; $i > -1; $i--) {
-      // The \s+ gobbles up both drushs 2 spaces and d.o and our one. Seems d.o
-      // fixed their capitalization at some point.
+      // We'll take any packaging script name. Drupal.org has on at least one
+      // occasion managed to produce "...added by  packaging script...".
       if (preg_match('/^;\s+Information added by .* packaging script/', $lines[$i], $matches)) {
         break;
       }
