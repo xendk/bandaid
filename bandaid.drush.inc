@@ -1147,7 +1147,7 @@ function _bandaid_fix_info_files($dir) {
     for ($i = count($lines) - 1; $i > -1; $i--) {
       // We'll take any packaging script name. Drupal.org has on at least one
       // occasion managed to produce "...added by  packaging script...".
-      if (preg_match('/^;\s+Information added by .* packaging script/', $lines[$i], $matches)) {
+      if (preg_match('/^\s*;\s+Information added by .* (packaging script|on)/', $lines[$i], $matches)) {
         break;
       }
     }
