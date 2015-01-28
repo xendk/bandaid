@@ -7,6 +7,8 @@
 
 namespace Bandaid;
 
+use Symfony\Component\Yaml\Yaml;
+
 /**
  * Bandaid error class.
  */
@@ -34,9 +36,23 @@ class BandaidError extends \Exception {
     if ($this->error == 'drush_set_error') {
       return FALSE;
     }
-    $message = !empty($this->message) ? $this->message : NULL;
+    if ($this instanceof BandaidInternalError &&
+      !drush_get_context('DRUSH_DEBUG')) {
+      // Don't print internal error messages unless in debug mode.
+      $message = dt('Internal error.');
+    }
+    else {
+      $message = !empty($this->message) ? $this->message : NULL;
+    }
     return drush_set_error($this->error, $message);
   }
+}
+
+/**
+ *
+ */
+class BandaidInternalError extends BandaidError {
+
 }
 
 /**
@@ -239,5 +255,155 @@ class Git {
     $ignores = array_merge($existing_ignores, $ignores);
     array_unique($ignores);
     file_put_contents($exclude_file, implode("\n", $ignores));
+  }
+}
+
+/**
+ * Encapsulates project logic.
+ */
+class Project {
+  protected $path;
+  protected $yaml = NULL;
+  protected $core = FALSE;
+  /**
+   * Constructor.
+   *
+   * @param sting $path
+   *   Path to project.
+   */
+  public function __construct($path) {
+    $this->path = realpath($path);
+
+    if (!$this->loadYaml() && !file_exists($this->getInfoFileName())) {
+      // If we found neither YAML or a default info file, see if we have core.
+      $this->detectCore();
+    }
+  }
+
+  /**
+   * Get path of project.
+   */
+  public function getPath() {
+    return $this->path;
+  }
+
+  /**
+   * Set info file override.
+   *
+   * @todo should it check for file existence?
+   */
+  public function setInfoFileName($name) {
+    $this->yaml['info-file'] = $name;
+  }
+
+  /**
+   * Path to the info file.
+   */
+  public function getInfoFileName($name) {
+    $this->yaml['info-file'] = $name;
+    if (isset($this->yaml['info-file'])) {
+      return $this->yaml['info-file'];
+    }
+    return basename($this->path . '.info');
+  }
+
+  /**
+   * Path to the YAML file.
+   */
+  public function getYamlFileName() {
+    if ($this->core) {
+      return $this->path . '/core.yml';
+    }
+    return $this->path . '.yml';
+  }
+
+  /**
+   * Get the list of patches applied.
+   */
+  public function getPatches() {
+    if (!empty($this->yaml['patches'])) {
+      return $this->yaml['patches'];
+    }
+
+    return array();
+  }
+
+  /**
+   * Add patch to project.
+   */
+  public function addPatch($patch) {
+    if (!isset($patch['patch']) ||
+      !isset($patch['home']) ||
+      !isset($patch['reason'])) {
+      throw new BandaidInternalError('BAD_PATCH', dt('Bad patch passed to addPatch.'));
+    }
+
+    if (!isset($this->yaml['patches'])) {
+      $this->yaml['patches'] = array();
+    }
+
+    $this->yaml['patches'][] = $patch;
+  }
+
+  /**
+   * Write the YAML file.
+   */
+  public function save() {
+    // Delete the file if we have no content for it.
+    $filename = $this->getYamlFileName();
+    if (empty($this->yaml)) {
+      if (file_exists($filename)) {
+        unlink($filename);
+      }
+    }
+
+    // Prepare the output. Only switch to inline format at level 4.
+    $new_yaml = Yaml::dump($this->yaml, 4, 2);
+
+    $current_yaml = FALSE;
+    // Get the current contents of the file.
+    if (file_exists($filename)) {
+      $current_yaml = file_get_contents($filename);
+    }
+
+    // Write the yaml if we have any new content.
+    if ($new_yaml != $current_yaml && !file_put_contents($filename, $new_yaml)) {
+      throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $filename)));
+
+    }
+  }
+
+  /**
+   * Load YAML file.
+   */
+  protected function loadYaml() {
+    $yamlfile = $this->getYamlFileName();
+    if (file_exists($yamlfile)) {
+      $this->yaml = Yaml::parse($yamlfile);
+      return TRUE;
+    }
+
+    return FALSE;
+  }
+
+  /**
+   * Detect whether the project is in fact Drupal core.
+   */
+  protected function detectCore() {
+    // Detect whether we're running on core.
+    $version_files = array(
+      "/modules/system/system.module",
+      "/includes/bootstrap.inc",
+      "/core/lib/Drupal.php",
+    );
+    foreach ($version_files as $version_file) {
+      if (file_exists($this->path . $version_file)) {
+        $file_contents = file_get_contents($this->path . $version_file);
+        if (preg_match("{(?:define\\('VERSION',|const VERSION =) +'([^']+)'}", $file_contents, $matches)) {
+          $this->core = $matches[1];
+          drush_log(dt('Core @version detected.', array('@version' => $core)), 'status');
+        }
+      }
+    }
   }
 }

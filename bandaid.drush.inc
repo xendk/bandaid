@@ -13,6 +13,7 @@ require 'bandaid.inc';
 
 use Bandaid\Git;
 use Bandaid\BandaidError;
+use Bandaid\Project;
 use Symfony\Component\Yaml\Yaml;
 use Goutte\Client;
 define('BANDAID_MINIMUM_PHP', '5.3.0');
@@ -200,14 +201,11 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     }
     _bandaid_check_php_version();
 
-    // Get the project, allow for info file override.
-    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
-    if (empty($project['yaml'])) {
-      $project['yaml'] = array(
-        'patches' => array(),
-      );
+    $project = new Project($project);
+    if ($info_file = drush_get_option('info-file', NULL)) {
+      $project->setInfoFileName($info_file);
     }
-    chdir($project['dir']);
+    chdir($project->getPath());
 
     // Translate to patch URL if pointing at an issue.
     $patch = _bandaid_patch_from_issue($patch);
@@ -264,10 +262,8 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
       $new_patch['reason'] = $reason;
     }
 
-    $project['yaml']['patches'][] = $new_patch;
-
-    // Make sure the yaml file is up to date.
-    _bandaid_write_yaml($project);
+    $project->addPatch($new_patch);
+    $project->save();
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
@@ -625,6 +621,8 @@ function _bandaid_check_php_version() {
  * file, and load any found yaml file.
  *
  * If project not given, try the current dir.
+ *
+ * @deprecated by Project.
  */
 function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL, $dont_validate_info = FALSE) {
   if (!$project_name) {
@@ -1304,6 +1302,8 @@ function _bandaid_get_patches_from_issue($url) {
 
 /**
  * Writes the [projectname].yml file.
+ *
+ * @deprecated by Project::save().
  */
 function _bandaid_write_yaml($project) {
   // If the patches are empty, remove the empty array. Primarily to get the
