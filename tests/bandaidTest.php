@@ -642,6 +642,77 @@ EOF;
     $this->drush('bandaid-diff', array('exif_custom'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
   }
 
+  public function testGitRepo() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $cwd = getcwd();
+    chdir($workdir);
+    // Using a non-drupal.org project.
+    $this->execute('git clone https://github.com/Biblioteksvagten/ask_vopros.git');
+    chdir('ask_vopros');
+    // Check out some revision.
+    $this->execute('git checkout 6106220e8cfca7a6911a71ac147d19d27cec8b63');
+    chdir($workdir);
+
+    // Ungit it.
+    $this->drush('bandaid-degit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
+
+    // Ensure that the git dir has been removed.
+    $this->assertFalse(file_exists('ask_vopros/.git'));
+
+    // Add a local modification to the module file.
+    $content = file_get_contents($workdir . '/ask_vopros/ask_vopros.admin.inc');
+    $content .= "\$var = \"Local modification.\";\n";
+    file_put_contents($workdir . '/ask_vopros/ask_vopros.admin.inc', $content);
+
+    // Check that we get the expected diff.
+    $expected_diff = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n \n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
+
+    $this->drush('bandaid-diff', array('ask_vopros'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
+    $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
+
+    // Tearoff the local changes and check that they're gone.
+    $this->drush('bandaid-tearoff', array('ask_vopros'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
+
+    $local_patch = $workdir . '/ask_vopros.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+    // Regit it.
+    $this->drush('bandaid-regit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
+
+    // Ensure that the git dir exists.
+    $this->assertTrue(file_exists('ask_vopros/.git'));
+
+    chdir('ask_vopros');
+    // Check out a higher rev.
+    $this->execute('git checkout e7f07d2774ec77dfde013d1891de41dd837cf516');
+    chdir($workdir);
+
+    // Degit again.
+    $this->drush('bandaid-degit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
+
+    // Do an apply.
+    // Reapply patches.
+    $this->drush('bandaid-apply', array('ask_vopros'), array(), NULL, $workdir);
+    // The local patch file should be gone.
+    $this->assertFalse(file_exists($local_patch));
+
+    // And the patches should be reapplied.
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros/ask_vopros.admin.inc'));
+
+    // Check that we get the expected diff still.
+    $expected_diff = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n \n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
+
+    $this->drush('bandaid-diff', array('ask_vopros'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
+    $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
+
+    chdir($cwd);
+  }
+
   /**
    * Grep for a string.
    */
