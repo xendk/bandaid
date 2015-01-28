@@ -421,15 +421,6 @@ function drush_bandaid_apply($project = NULL) {
 
     chdir($checkout_dir);
 
-    if ($clone_info['drupal.org']) {
-      // Some have erranously committed LICENSE.txt. Note if that's the case for
-      // later.
-      $license_exists = file_exists('LICENSE.txt');
-      if ($license_exists) {
-        $license_perms = fileperms('LICENSE.txt');
-      }
-    }
-
     // Create local branch.
     Git::branch('bandaid_local');
 
@@ -602,7 +593,7 @@ function drush_bandaid_regit($project = NULL) {
       throw new BandaidError('NO_REVISION', dt('No revision either in YAML file or from comman line.'));
     }
 
-    // Clone into a temporary
+    // Clone into a temporary directory.
     $checkout_dir = _bandaid_tmpdir();
     !_bandaid_clone($origin, $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
@@ -937,6 +928,9 @@ function _bandaid_tmpdir() {
   return $tmp_dir;
 }
 
+/**
+ * Clone project using info from info/YAML file.
+ */
 function _bandaid_clone_from_info($project, $path) {
   $return = array(
     'drupal.org' => FALSE,

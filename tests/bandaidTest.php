@@ -375,7 +375,6 @@ EOF;
     $this->assertTrue(file_exists('virtual_field.yml'));
     $yaml = Yaml::parse('virtual_field.yml');
 
-
     $this->assertEquals('git', $yaml['project']['type']);
     $this->assertEquals('http://git.drupal.org/project/virtual_field.git', $yaml['project']['origin']);
     $this->assertEquals('f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6', $yaml['project']['revision']);
@@ -629,7 +628,7 @@ EOF;
    *
    * We expect 0 at no diff and 1 when a difference exists.
    */
-  public function testDiffExitcode(){
+  public function testDiffExitcode() {
     $workdir = $this->webroot() . '/sites/all/modules';
     $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
 
@@ -646,6 +645,9 @@ EOF;
     $this->drush('bandaid-diff', array('exif_custom'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
   }
 
+  /**
+   * Test that diff/tearoff/apply works on a degitted repo.
+   */
   public function testGitRepo() {
     $workdir = $this->webroot() . '/sites/all/modules';
     $cwd = getcwd();
