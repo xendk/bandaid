@@ -9,6 +9,10 @@
 // we load a class that defines the new name as a subclass to the old.
 if (class_exists('Drush_CommandTestCase', FALSE)) {
   require_once 'oldtest-shim.inc';
+  define('BANDAID_DRUSH_LEGACY', TRUE);
+}
+else {
+  define('BANDAID_DRUSH_LEGACY', FALSE);
 }
 
 use Unish\CommandUnishTestCase;
@@ -664,8 +668,18 @@ EOF;
     $content .= "\$var = \"Local modification.\";\n";
     file_put_contents($workdir . '/ask_vopros/ask_vopros.admin.inc', $content);
 
-    // Check that we get the expected diff.
-    $expected_diff = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n \n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
+    // Check that we get the expected diff. If we're running tests on Drush 5/6,
+    // we have the problem that it uses exec(), which will trim output lines. As
+    // we expect an output with a line that only contains a space, this will
+    // bite us. So we fudge it. But the patch file should still be correct, so
+    // we'll get some assurance there.
+    $expected_patch = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n \n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
+    if (BANDAID_DRUSH_LEGACY) {
+      $expected_diff = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n\n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
+    }
+    else {
+      $expected_diff = $expected_patch;
+    }
 
     $this->drush('bandaid-diff', array('ask_vopros'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
@@ -678,7 +692,7 @@ EOF;
     $local_patch = $workdir . '/ask_vopros.local.patch';
     // Ensure that we got a local patch file and it contains the expected.
     $this->assertFileExists($local_patch);
-    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+    $this->assertEquals($expected_patch, file_get_contents($local_patch));
 
     // Regit it.
     $this->drush('bandaid-regit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
@@ -704,8 +718,6 @@ EOF;
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros/ask_vopros.admin.inc'));
 
     // Check that we get the expected diff still.
-    $expected_diff = "diff --git a/ask_vopros.admin.inc b/ask_vopros.admin.inc\nindex 2cb7a9e..3ce0f23 100644\n--- a/ask_vopros.admin.inc\n+++ b/ask_vopros.admin.inc\n@@ -94,3 +94,4 @@ function ask_vopros_settings(\$form, &\$form_state) {\n \n   return system_settings_form(\$form);\n }\n+\$var = \"Local modification.\";\n";
-
     $this->drush('bandaid-diff', array('ask_vopros'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
     $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
