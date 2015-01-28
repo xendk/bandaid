@@ -262,21 +262,57 @@ class Git {
  * Encapsulates project logic.
  */
 class Project {
+  /**
+   * The path to the project.
+   */
   protected $path;
+
+  /**
+   * Loaded YAML data.
+   */
   protected $yaml = NULL;
+
+  /**
+   * Whether we've detected that this project is core.
+   */
   protected $core = FALSE;
+
+  /**
+   * Repository origin.
+   */
+  protected $origin = NULL;
+
+  /**
+   * Repository revision.
+   */
+  protected $revision = NULL;
+
+  /**
+   * Parsed info file data.
+   */
+  protected $versionInfo = NULL;
+
+  /**
+   * Original version from the info file.
+   */
+  protected $infoVersion = NULL;
+
   /**
    * Constructor.
    *
    * @param sting $path
    *   Path to project.
    */
-  public function __construct($path) {
+  public function __construct($path = NULL) {
+    if (!$path) {
+      $path = getcwd();
+    }
     $this->path = realpath($path);
 
     if (!$this->loadYaml() && !file_exists($this->getInfoFileName())) {
       // If we found neither YAML or a default info file, see if we have core.
       $this->detectCore();
+      $this->loadYaml();
     }
   }
 
@@ -285,6 +321,19 @@ class Project {
    */
   public function getPath() {
     return $this->path;
+  }
+
+  /**
+   * Return the project name.
+   *
+   * We're somewhat guessing here.
+   */
+  public function getName() {
+    if ($this->core) {
+      return 'drupal';
+    }
+
+    return basename($this->path);
   }
 
   /**
@@ -299,8 +348,7 @@ class Project {
   /**
    * Path to the info file.
    */
-  public function getInfoFileName($name) {
-    $this->yaml['info-file'] = $name;
+  public function getInfoFileName() {
     if (isset($this->yaml['info-file'])) {
       return $this->yaml['info-file'];
     }
@@ -311,10 +359,21 @@ class Project {
    * Path to the YAML file.
    */
   public function getYamlFileName() {
-    if ($this->core) {
-      return $this->path . '/core.yml';
-    }
-    return $this->path . '.yml';
+    return $this->auxFileBase() . '.yml';
+  }
+
+  /**
+   * Get path to the local patch.
+   */
+  public function getLocalPatchFileName() {
+    return $this->auxFileBase() . '.local.patch';
+  }
+
+  /**
+   * Whether there's an existing local patch.
+   */
+  public function hasLocalPatch() {
+    return file_exists($this->getLocalPatchFileName());
   }
 
   /**
@@ -326,6 +385,16 @@ class Project {
     }
 
     return array();
+  }
+
+  /**
+   * Set list of patches.
+   */
+  public function setPatches($patches = array()) {
+    $this->yaml['patches'] = array();
+    foreach ($patches as $patch) {
+      $this->addPatch($patch);
+    }
   }
 
   /**
@@ -345,6 +414,90 @@ class Project {
     $this->yaml['patches'][] = $patch;
   }
 
+  /**
+   * Get files that git should ignore.
+   *
+   * @todo should do better than hardcoding D7 ignores.
+   */
+  public function getIgnores() {
+    if ($this->core) {
+      list($major, $minor) = explode('.', $this->core, 2);
+      if ($major == 7) {
+        return array(
+          'core.yml',
+          'core.local.patch',
+          'sites/all/modules',
+          '!sites/all/modules/README.txt',
+          'sites/all/themes',
+          '!sites/all/themes/README.txt',
+          'sites/default',
+          '!sites/default/default.settings.php',
+          'profiles',
+          '!profiles/minimal',
+          '!profiles/standard',
+          '!profiles/testing',
+        );
+      }
+    }
+    return array();
+  }
+
+  /**
+   * Whether this is cloned from drupal.org.
+   */
+  public function isFromDrupalOrg() {
+    // @todo Very simple-minded, but it'll do for now.
+    return (strstr($this->getOrigin(), 'drupal.org') !== FALSE);
+  }
+
+  /**
+   * Get the origin repository.
+   */
+  public function getOrigin() {
+    $this->ensureOrigin();
+    if (empty($this->origin)) {
+      throw new BandaidError('NO_ORIGIN', dt('I have no idea where to clone this from.'));
+    }
+    return $this->origin;
+  }
+
+  /**
+   * Get the origin revision.
+   *
+   * @param string $checkout
+   *   The path to the checked out repository, in case we need to
+   *   examine history.
+   */
+  public function getRevision($checkout = NULL) {
+    $this->ensureRevision($checkout);
+    if (empty($this->revision)) {
+      throw new BandaidError('NO_REVISION', dt('I have no idea what revision to check out.'));
+    }
+    return $this->revision;
+  }
+
+  /**
+   * Get the message associated with .
+   */
+  public function getMessage($ref, $checkout = NULL) {
+    if ($checkout) {
+      $cwd = getcwd();
+      chdir($checkout);
+      $commits = array_reverse(Git::onelineLog($ref));
+      chdir($cwd);
+      list($dummy, $message) = explode(' ', reset($commits));
+      return $message;
+    }
+
+    return NULL;
+  }
+
+  public function getInfoVersion() {
+    $this->ensureVersionInfo();
+    if (empty($this->revision)) {
+      throw new BandaidError('NO_INFO_VERSION', dt('No version found in info file.'));
+    }
+  }
   /**
    * Write the YAML file.
    */
@@ -374,6 +527,17 @@ class Project {
   }
 
   /**
+   * Base name of our aux files..
+   */
+  protected function auxFileBase() {
+    if ($this->core) {
+      return $this->path . '/core';
+    }
+    return $this->path;
+  }
+
+
+  /**
    * Load YAML file.
    */
   protected function loadYaml() {
@@ -401,8 +565,117 @@ class Project {
         $file_contents = file_get_contents($this->path . $version_file);
         if (preg_match("{(?:define\\('VERSION',|const VERSION =) +'([^']+)'}", $file_contents, $matches)) {
           $this->core = $matches[1];
-          drush_log(dt('Core @version detected.', array('@version' => $core)), 'status');
+          drush_log(dt('Core @version detected.', array('@version' => $this->core)), 'status');
         }
+      }
+    }
+  }
+
+  /**
+   * Ensure we've figured out the Git origin for this project.
+   */
+  protected function ensureOrigin() {
+    if ($this->origin) {
+      // Already parsed.
+      return;
+    }
+
+    if (isset($this->yaml['project']['type'])) {
+      // Defined in the YAML, validate.
+      // @todo a bit odd to validate revision here.
+      if ($this->yaml['project']['type'] !== 'git') {
+        throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
+      }
+      elseif (empty($this->yaml['project']['origin'])) {
+        throw new BandaidError('NO_PROJECT_ORIGIN', dt('No origin repository in YAML file."'));
+      }
+      elseif (empty($this->yaml['project']['revision'])) {
+        throw new BandaidError('NO_PROJECT_REVISION', dt('No origin revision in YAML file."'));
+      }
+      $this->origin = $this->yaml['project']['origin'];
+      $this->revision = $this->yaml['project']['revision'];
+    }
+    else {
+      if ($this->core) {
+        $project = 'drupal';
+      }
+      else {
+        $this->ensureVersionInfo();
+        $project = $this->versionInfo['project'];
+      }
+      $this->origin = 'http://git.drupal.org/project/' . $project;
+    }
+  }
+
+  /**
+   * Make sure we've figured out the revision to check out.
+   */
+  protected function ensureRevision($checkout = NULL) {
+    if ($this->revision) {
+      // Already parsed. ensureOrigin might have done it.
+      return;
+    }
+
+    $this->ensureVersionInfo();
+    if (!empty($this->versionInfo['sha'])) {
+      $this->revision = $this->versionInfo['sha'];
+    }
+    elseif (empty($this->versionInfo['version'])) {
+      throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
+    }
+    $prefix = $this->core ? '' : $this->versionInfo['core'] . '-';
+    $revision = $prefix . $this->versionInfo['version'];
+    if ($this->versionInfo['commits']) {
+      // If we don't have a checkout to examine, bomb out.
+      if (!$checkout) {
+        return;
+      }
+
+      $branch = 'origin/' . $prefix . $this->versionInfo['major'] . '.x';
+      $tag    = $prefix . $this->versionInfo['version'];
+      $cwd = getcwd();
+      chdir($checkout);
+      // Get history from base version to head.  Flip the order so we have the
+      // oldest commit first.
+      $commits = array_reverse(Git::onelineLog($tag, $branch));
+      chdir($cwd);
+      // Pick out the nth commit, and split the line.
+      $split = explode(' ', $commits[$this->versionInfo['commits'] - 1], 2);
+      $revision = $split[0];
+    }
+    $this->revision = $revision;
+  }
+
+  /**
+   * Ensure the info file has been loaded.
+   */
+  protected function ensureVersionInfo() {
+    if (!$this->versionInfo) {
+      if ($this->core) {
+        $this->versionInfo = array(
+          'version' => $this->core,
+        );
+      }
+      else {
+        $filename = $this->getInfoFileName();
+        if (!file_exists($this->path . '/' . $filename)) {
+          throw new BandaidError('NO_INFO_FILE', dt('Could not find the info file "@filename"', array('@filename' => $filename)));
+        }
+        $info = drush_drupal_parse_info_file($filename);
+        if (!$info) {
+          throw new BandaidError('COULD_NOT_PARSE_INFO_FILE', dt('Error parsing the info file.'));
+        }
+
+        $parsed_info = array();
+        if (!empty($info['version'])) {
+          $this->infoVersion = $info['version'];
+          $parsed_info = _bandaid_parse_version($info['version']);
+        }
+
+        if (!empty($info['project'])) {
+          $parsed_info['project'] = $info['project'];
+        }
+        $this->versionInfo = $parsed_info;
       }
     }
   }

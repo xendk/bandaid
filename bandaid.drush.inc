@@ -202,6 +202,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     _bandaid_check_php_version();
 
     $project = new Project($project);
+    // Override info file if set on command line.
     if ($info_file = drush_get_option('info-file', NULL)) {
       $project->setInfoFileName($info_file);
     }
@@ -279,12 +280,14 @@ function drush_bandaid_tearoff($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    // Get the project, allow for info file override.
-    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
+    $project = new Project($project);
+    // Override info file if set on command line.
+    if ($info_file = drush_get_option('info-file', NULL)) {
+      $project->setInfoFileName($info_file);
+    }
+    chdir($project->getPath());
 
-    chdir(dirname($project['dir']));
-
-    if ($project['local_patch']) {
+    if ($project->hasLocalPatch()) {
       drush_log(dt('Local patch file exists, it will be overwritten.'), 'warning');
       if (!drush_confirm('Continue anyway?')) {
         return drush_user_abort();
@@ -294,25 +297,13 @@ function drush_bandaid_tearoff($project = NULL) {
     list($checkout_dir, $checkout_ref, $patch) = _bandaid_clone_and_tearoff($project);
 
     // Return to a pristine checkout.
-    Git::checkout($checkout_ref);
+    Git::checkout($project->getRevision());
 
-    if (!empty($project['version_info'])) {
-      // Generate a version-string like d.o and drush would do, if there was one
-      // before.
+    if ($project->isFromDrupalOrg()) {
+      // Generate a version-string like d.o and drush would do, if
+      // there was one before.
+      _bandaid_inject_info_file_metadata($checkout_dir, $project->getName(), $project->getInfoVersion());
 
-      // If this is a SHA-version thats all we can put into the version.
-      if (!empty($project['version_info']['sha'])) {
-        $version = $project['version_info']['sha'];
-      }
-      else {
-        // Generate a "Proper" version-string like we would see on d.o.
-        $version = $project['version_info']['core'] . '-' .
-          $project['version_info']['version'] .
-          (!empty($project['version_info']['commits']) ?
-            '+' . $project['version_info']['commits'] . '-dev' :
-            '');
-      }
-      _bandaid_inject_info_file_metadata($checkout_dir, $project['name'], $version);
       // Create a commit we can checkout.
       Git::add('.');
       Git::commit('Updated info.');
@@ -330,17 +321,17 @@ function drush_bandaid_tearoff($project = NULL) {
 
     // Update the local files by making Git use it as work-tree, and checking
     // out.
-    Git::resetTo($project['dir'], TRUE);
-    Git::checkoutTo($project['dir'], $sha);
+    Git::resetTo($project->getPath(), TRUE);
+    Git::checkoutTo($project->getPath(), $sha);
 
     // Create local patch file.
     if (!empty($patch)) {
-      if (!file_put_contents($project['local_patch_file'], $patch)) {
+      if (!file_put_contents($project->getLocalPatchFileName(), $patch)) {
         throw new BandaidError('CANNOT_CREATE_PATCH', dt('Error creating file @patch_file', array('@patch_file' => $project['local_patch_file'])));
       }
 
       // Make sure the yaml file is up to date.
-      _bandaid_write_yaml($project);
+      $project->save();
     }
   }
   catch (BandaidError $e) {
@@ -357,10 +348,13 @@ function drush_bandaid_diff($project = NULL, $file = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
-
     $cwd = getcwd();
-    chdir(dirname($project['dir']));
+    $project = new Project($project);
+    // Override info file if set on command line.
+    if ($info_file = drush_get_option('info-file', NULL)) {
+      $project->setInfoFileName($info_file);
+    }
+    chdir($project->getPath());
 
     list($checkout_dir, $checkout_ref, $patch) = _bandaid_clone_and_tearoff($project);
 
@@ -378,7 +372,7 @@ function drush_bandaid_diff($project = NULL, $file = NULL) {
 
     chdir($checkout_dir);
     // Return to a pristine checkout.
-    Git::checkout($checkout_ref);
+    Git::checkout($project->getRevision());
 
     if (!empty($patch)) {
       // Re-apply any local changes.
@@ -405,12 +399,15 @@ function drush_bandaid_apply($project = NULL) {
   try {
     _bandaid_check_php_version();
 
-    $project = _bandaid_validate_project($project, drush_get_option('info-file', NULL));
-
-    chdir(dirname($project['dir']));
+    $project = new Project($project);
+    // Override info file if set on command line.
+    if ($info_file = drush_get_option('info-file', NULL)) {
+      $project->setInfoFileName($info_file);
+    }
+    chdir($project->getPath());
 
     // Clone repo.
-    drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
+    drush_log(dt('Cloning @name.', array('@name' => $project->getName())), 'status');
     $checkout_dir = _bandaid_tmpdir();
     $clone_info = _bandaid_clone_from_info($project, $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
@@ -424,15 +421,16 @@ function drush_bandaid_apply($project = NULL) {
     Git::checkout('bandaid_local');
 
     // Add project ignore files.
-    if (!empty($project['ignores'])) {
-      Git::addIgnores($project['ignores']);
+    $ignores = $project->getIgnores();
+    if ($ignores) {
+      Git::addIgnores($ignores);
     }
     // Add the local version.
-    Git::addFrom($project['dir'], '.', TRUE);
+    Git::addFrom($project->getPath(), '.', TRUE);
 
-    if ($clone_info['drupal.org']) {
+    if ($project->isFromDrupalOrg()) {
       // Ignore any changes to LICENSE.txt. Drupal.org automatically adds it.
-      if (file_exists($project['dir'] . '/LICENSE.txt')) {
+      if (file_exists($project->getPath() . '/LICENSE.txt')) {
         Git::reset(FALSE, 'LICENSE.txt');
       }
     }
@@ -442,7 +440,7 @@ function drush_bandaid_apply($project = NULL) {
 
     // Remove extra info added by drupal.org/drush/ourselves from the info
     // files, to not pollute diff.
-    if ($clone_info['drupal.org']) {
+    if ($project->isFromDrupalOrg()) {
       _bandaid_fix_info_files($checkout_dir);
     }
 
@@ -471,15 +469,17 @@ function drush_bandaid_apply($project = NULL) {
     }
 
     // Apply patches to local branch.
-    if (!empty($project['yaml']['patches'])) {
-      $new_patches = _bandaid_patch($project['yaml']['patches']);
+    $patches = $project->getPatches();
+    if ($patches) {
+      $new_patches = _bandaid_patch($patches);
     }
 
     // Apply a local patch.
-    if ($project['local_patch']) {
-      if (Git::apply($project['local_patch_file'])) {
-        drush_log(dt('Patched with @filename.', array('@filename' => basename($project['local_patch_file']))), 'ok');
-        unlink($project['local_patch_file']);
+    $patch_file = $project->getLocalPatchFileName();
+    if (file_exists($patch_file)) {
+      if (Git::apply($patch_file)) {
+        drush_log(dt('Patched with @filename.', array('@filename' => basename($patch_file))), 'ok');
+        unlink($patch_file);
         // Create a commit we can checkout.
         Git::add('.');
         Git::commit('Added local patch.');
@@ -494,12 +494,12 @@ function drush_bandaid_apply($project = NULL) {
 
     // Update the local files by making Git use it as work-tree, and checking
     // out.
-    Git::checkoutTo($project['dir'], 'bandaid_local');
+    Git::checkoutTo($project->getPath(), 'bandaid_local');
 
     // If some patches were ignored, write new yaml file.
-    if (($new_patches != $project['yaml']['patches']) && drush_get_option('update-yaml', FALSE)) {
-      $project['yaml']['patches'] = $new_patches;
-      _bandaid_write_yaml($project);
+    if (($new_patches != $patches) && drush_get_option('update-yaml', FALSE)) {
+      $project->setPatches($new_patches);
+      $project->save();
       drush_log('Updated yaml file.', 'ok');
     }
   }
@@ -805,6 +805,8 @@ function _bandaid_patch_from_issue($url) {
  * Parse a modules info file.
  *
  * Figures out which version, and possibly patch level a module is.
+ *
+ * @obsoleted by Project::ensureVersionInfo().
  */
 function _bandaid_parse_info($file) {
   $info = drush_drupal_parse_info_file($file);
@@ -859,10 +861,10 @@ function _bandaid_parse_version($version) {
  */
 function _bandaid_clone_and_tearoff($project) {
   // Clone repo.
-  drush_log(dt('Cloning @name.', array('@name' => $project['name'])), 'status');
+  drush_log(dt('Cloning @name.', array('@name' => $project->getName())), 'status');
   $checkout_dir = _bandaid_tmpdir();
 
-  $clone_info = _bandaid_clone_from_info($project, $checkout_dir);
+  _bandaid_clone_from_info($project, $checkout_dir);
   drush_register_file_for_deletion($checkout_dir);
 
   chdir($checkout_dir);
@@ -874,24 +876,26 @@ function _bandaid_clone_and_tearoff($project) {
   Git::branch('bandaid_local');
 
   // Apply patches to patch branch.
-  if (!empty($project['yaml']['patches'])) {
+  $patches = $project->getPatches();
+  if ($patches) {
     Git::checkout('bandaid_patch');
-    _bandaid_patch($project['yaml']['patches']);
+    _bandaid_patch($patches);
   }
 
   // Copy the local project to the local branch.
   Git::checkout('bandaid_local');
 
   // Add project ignore files.
-  if (!empty($project['ignores'])) {
-    Git::addIgnores($project['ignores']);
+  $ignores = $project->getIgnores();
+  if ($ignores) {
+    Git::addIgnores($ignores);
   }
   // Add the local version.
-  Git::addFrom($project['dir'], '.', TRUE);
+  Git::addFrom($project->getPath(), '.', TRUE);
 
-  if ($clone_info['drupal.org']) {
+  if ($project->isFromDrupalOrg()) {
     // Ignore any changes to LICENSE.txt. Drupal.org automatically adds it.
-    if (file_exists($project['dir'] . '/LICENSE.txt')) {
+    if (file_exists($project->getPath() . '/LICENSE.txt')) {
       Git::reset(FALSE, 'LICENSE.txt');
     }
   }
@@ -899,7 +903,7 @@ function _bandaid_clone_and_tearoff($project) {
   // Update repo work tree to what we just added.
   Git::checkout('.');
 
-  if ($clone_info['drupal.org']) {
+  if ($project->isFromDrupalOrg()) {
     _bandaid_fix_info_files($checkout_dir);
   }
 
@@ -909,7 +913,7 @@ function _bandaid_clone_and_tearoff($project) {
   // Create local patch.
   $patch = Git::diff('bandaid_patch', 'bandaid_local');
 
-  return array($checkout_dir, $clone_info['revision'], $patch);
+  return array($checkout_dir, $project->getRevision(), $patch);
 }
 
 /**
@@ -930,48 +934,14 @@ function _bandaid_tmpdir() {
  * Clone project using info from info/YAML file.
  */
 function _bandaid_clone_from_info($project, $path) {
-  $return = array(
-    'drupal.org' => FALSE,
-  );
-
-  // If the YAML file contained a project specification, use that. Else we try
-  // to clone from Drupal.org.
-  if (isset($project['yaml']['project']['type']) &&
-    $project['yaml']['project']['type'] == 'git') {
-    $origin = $project['yaml']['project']['origin'];
-    if (empty($origin)) {
-      throw new BandaidError('NO_ORIGIN', dt('No repository origin in YAML file.'));
-    }
-  }
-  else {
-    $origin = _bandaid_origin_from_info($project['version_info']);
-    $return['drupal.org'] = TRUE;
-  }
-
-  $return['origin'] = $origin;
-
   // Clone the repo.
-  _bandaid_clone($origin, $path);
+  _bandaid_clone($project->getOrigin(), $path);
 
   $cwd = getcwd();
   chdir($path);
 
-  // If not from drupal.org, just use the given revision, else try to figure out
-  // the sha from the info file version.
-  if (!$return['drupal.org']) {
-    $revision = $project['yaml']['project']['revision'];
-    if (empty($origin)) {
-      throw new BandaidError('NO_REVISION', dt('No revision in YAML file.'));
-    }
-    $message = '';
-  }
-  else {
-    list($revision, $message) = _bandaid_sha_from_info($project['version_info']);
-  }
-
-  $return['revision'] = $revision;
-  $return['messge'] = $message;
-
+  $revision = $project->getRevision($path);
+  $message = $project->getMessage($revision, $path);
   // Checkout base version.
   drush_log(dt('Checking out @ref.', array('@ref' => $revision)), 'status');
   if (!empty($message)) {
@@ -980,7 +950,6 @@ function _bandaid_clone_from_info($project, $path) {
   Git::checkout($revision);
 
   chdir($cwd);
-  return $return;
 }
 
 /**
