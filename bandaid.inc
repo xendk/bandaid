@@ -49,11 +49,9 @@ class BandaidError extends \Exception {
 }
 
 /**
- *
+ * Error class for internal errors.
  */
-class BandaidInternalError extends BandaidError {
-
-}
+class BandaidInternalError extends BandaidError {}
 
 /**
  * Encapsulates Bandaids git operations.
