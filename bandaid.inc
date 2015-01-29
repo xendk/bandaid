@@ -524,6 +524,9 @@ class Project {
     return NULL;
   }
 
+  /**
+   * Get the version defined in the info file.
+   */
   public function getInfoVersion() {
     $this->ensureVersionInfo();
     if (empty($this->revision)) {
@@ -534,27 +537,7 @@ class Project {
    * Write the YAML file.
    */
   public function save() {
-    if ($this->detectedOrigin != $this->origin ||
-        $this->detectedRevision != $this->revision) {
-      if (!isset($this->yaml['project'])) {
-        $this->yaml['project'] = array();
-      }
-      $this->yaml['project']['type'] = 'git';
-      $this->yaml['project']['origin'] = $this->origin;
-      $this->yaml['project']['revision'] = $this->revision;
-    }
-    else {
-      if (isset($this->yaml['project'])) {
-        unset(
-          $this->yaml['project']['type'],
-          $this->yaml['project']['origin'],
-          $this->yaml['project']['revision']
-        );
-        if (empty($this->yaml['project'])) {
-          unset($this->yaml['project']);
-        }
-      }
-    }
+    $this->updateUpstream();
 
     // Delete the file if we have no content for it.
     $filename = $this->getYamlFileName();
@@ -576,6 +559,33 @@ class Project {
     if ($new_yaml != $current_yaml && !file_put_contents($filename, $new_yaml)) {
       throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $filename)));
 
+    }
+  }
+
+  /**
+   * Update the YAML data with current origin/revision, if needed.
+   */
+  protected function updateUpstream() {
+    if ($this->detectedOrigin != $this->origin ||
+        $this->detectedRevision != $this->revision) {
+      if (!isset($this->yaml['project'])) {
+        $this->yaml['project'] = array();
+      }
+      $this->yaml['project']['type'] = 'git';
+      $this->yaml['project']['origin'] = $this->origin;
+      $this->yaml['project']['revision'] = $this->revision;
+    }
+    else {
+      if (isset($this->yaml['project'])) {
+        unset(
+          $this->yaml['project']['type'],
+          $this->yaml['project']['origin'],
+          $this->yaml['project']['revision']
+        );
+        if (empty($this->yaml['project'])) {
+          unset($this->yaml['project']);
+        }
+      }
     }
   }
 
@@ -633,13 +643,8 @@ class Project {
       return;
     }
 
-    if (isset($this->yaml['project']['type'])) {
-      // Defined in the YAML, validate.
-      // @todo duplicated code with ensureRevision..
-      if ($this->yaml['project']['type'] !== 'git') {
-        throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
-      }
-      elseif (empty($this->yaml['project']['origin'])) {
+    if ($this->validateProjectType()) {
+      if (empty($this->yaml['project']['origin'])) {
         throw new BandaidError('NO_PROJECT_ORIGIN', dt('No origin repository in YAML file."'));
       }
       $this->origin = $this->yaml['project']['origin'];
@@ -671,13 +676,8 @@ class Project {
       return;
     }
 
-    if (isset($this->yaml['project']['type'])) {
-      // Defined in the YAML, validate.
-      // @todo duplicated code with ensureOrigin..
-      if ($this->yaml['project']['type'] !== 'git') {
-        throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
-      }
-      elseif (empty($this->yaml['project']['revision'])) {
+    if ($this->validateProjectType()) {
+      if (empty($this->yaml['project']['revision'])) {
         throw new BandaidError('NO_PROJECT_REVISION', dt('No origin revision in YAML file."'));
       }
       $this->revision = $this->yaml['project']['revision'];
@@ -713,6 +713,19 @@ class Project {
       $this->revision = $revision;
       $this->detectedRevision = $this->revision;
     }
+  }
+
+  /**
+   * Validate the project data from YAML is wellformed.
+   */
+  protected function validateProjectType() {
+    if (isset($this->yaml['project']['type'])) {
+      if ($this->yaml['project']['type'] !== 'git') {
+        throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
+      }
+      return TRUE;
+    }
+    return FALSE;
   }
 
   /**
