@@ -603,141 +603,6 @@ function _bandaid_check_php_version() {
 }
 
 /**
- * Validate project.
- *
- * Ensure we can find it, parse the info file, check if there's any local patch
- * file, and load any found yaml file.
- *
- * If project not given, try the current dir.
- *
- * @deprecated by Project.
- */
-function _bandaid_validate_project($project_name = NULL, $infofile_override = NULL, $dont_validate_info = FALSE) {
-  if (!$project_name) {
-    $project_name = getcwd();
-  }
-  else {
-    $project_name = realpath($project_name);
-  }
-  $project = array(
-    'name' => basename($project_name),
-    'dir' => $project_name,
-    'version_info' => NULL,
-    'local_patch' => NULL,
-    'yaml' => NULL,
-  );
-
-  // Pull in the project yaml file.
-  $project['yaml_file'] = $project['dir'] . '.yml';
-  if (file_exists($project['yaml_file'])) {
-    $project['yaml'] = Yaml::parse($project['yaml_file']);
-  }
-
-  if (!empty($infofile_override)) {
-    // Allow the info file to be overriden at runtime.
-    $info_file = $project['dir'] . '/' . $infofile_override;
-
-    // Update the entry in the yaml data.
-    if (empty($project['yaml']['info-file']) || $infofile_override != $project['yaml']['info-file']) {
-      $project['yaml']['info-file'] = $infofile_override;
-    }
-  }
-  elseif (!empty($project['yaml']['info-file'])) {
-    // Allow the info file to be overridden by the yaml file.
-    $info_file = $project['dir'] . '/' . $project['yaml']['info-file'];
-  }
-  else {
-    // Fall back to the default info file.
-    $info_file = $project['dir'] . '/' . $project['name'] . '.info';
-  }
-
-  // Base for the yml and local patch.
-  $aux_file_base = $project_name;
-
-  $core = FALSE;
-  if (!file_exists($info_file)) {
-    // Detect whether we're running on core.
-    $version_files = array(
-      "/modules/system/system.module",
-      "/includes/bootstrap.inc",
-      "/core/lib/Drupal.php",
-    );
-    foreach ($version_files as $version_file) {
-      if (file_exists($project_name . $version_file)) {
-        $file_contents = file_get_contents($project_name . $version_file);
-        if (preg_match("{(?:define\\('VERSION',|const VERSION =) +'([^']+)'}", $file_contents, $matches)) {
-          $core = $matches[1];
-          drush_log(dt('Core @version detected.', array('@version' => $core)), 'status');
-        }
-      }
-    }
-    if (!$core) {
-      throw new BandaidError('NO_INFO_FILE', dt('Could not find the info file "@filename" in @path', array(
-        '@filename' => basename($info_file),
-        '@path' => $project['dir'],
-      )));
-    }
-  }
-
-  if ($core) {
-    $major = explode('.', $core);
-
-    if ($major[0] != 7) {
-      throw new BandaidError('UNSUPPORTED_CORE', dt('Drupal @major not supported yet.', array('@major' => $major[0])));
-    }
-
-    $project['version_info'] = array(
-      'project' => 'drupal',
-      'core' => $major[0],
-      'version' => $core,
-      'major' => $major[0],
-      // We only support full versions for core.
-      'commits' => '',
-      'is_core' => TRUE,
-    );
-
-    $aux_file_base = $project_name . '/core';
-    if ($major[0] == 7) {
-      $project['ignores'] = array(
-        'core.yml',
-        'core.local.patch',
-        'sites/all/modules',
-        '!sites/all/modules/README.txt',
-        'sites/all/themes',
-        '!sites/all/themes/README.txt',
-        'sites/default',
-        '!sites/default/default.settings.php',
-        'profiles',
-        '!profiles/minimal',
-        '!profiles/standard',
-        '!profiles/testing',
-      );
-    }
-  }
-  else {
-    if (!$dont_validate_info) {
-      try {
-        $project['version_info'] = _bandaid_parse_info($info_file);
-      }
-      catch (BandaidError $e) {
-        throw new BandaidError('COULD_NOT_PARSE_INFO', dt('Invalid info file @file', array('@file' => $info_file)), $e);
-      }
-    }
-  }
-  $project['local_patch_file'] = $aux_file_base . '.local.patch';
-  if (file_exists($project['local_patch_file'])) {
-    $project['local_patch'] = TRUE;
-  }
-
-  $project['yaml_file'] = $aux_file_base . '.yml';
-  if (file_exists($project['yaml_file'])) {
-    $project['yaml'] = Yaml::parse($project['yaml_file']);
-  }
-
-  return $project;
-}
-
-/**
  * Get a patch from an d.o issue.
  */
 function _bandaid_patch_from_issue($url) {
@@ -787,31 +652,6 @@ function _bandaid_patch_from_issue($url) {
   }
 
   return $url;
-}
-
-/**
- * Parse a modules info file.
- *
- * Figures out which version, and possibly patch level a module is.
- *
- * @obsoleted by Project::ensureVersionInfo().
- */
-function _bandaid_parse_info($file) {
-  $info = drush_drupal_parse_info_file($file);
-  if (!$info) {
-    throw new BandaidError('COULD_NOT_PARSE_INFO_FILE', dt('Error parsing the info file.'));
-  }
-
-  $parsed_info = array();
-  if (!empty($info['version'])) {
-    $parsed_info = _bandaid_parse_version($info['version']);
-    $parsed_info['is_core'] = FALSE;
-  }
-
-  if (!empty($info['project'])) {
-    $parsed_info['project'] = $info['project'];
-  }
-  return $parsed_info;
 }
 
 /**
@@ -938,49 +778,6 @@ function _bandaid_clone_from_info($project, $path) {
   Git::checkout($revision);
 
   chdir($cwd);
-}
-
-/**
- * Return the git origin for a project, from info file.
- */
-function _bandaid_origin_from_info($version_info) {
-  if (empty($version_info['project'])) {
-    throw new BandaidError('NO_PROJECT', dt('No "project" in info file.'));
-  }
-
-  return 'http://git.drupal.org/project/' . $version_info['project'];
-}
-
-/**
- * Find the SHA for the version specified by an info file.
- *
- * Handles dev releases.
- *
- * @retern array
- *   Two element array of sha and mesage. Message is empty for non-dev releases.
- */
-function _bandaid_sha_from_info($version_info) {
-  // If we already know the sha just go straight to the answer.
-  if (!empty($version_info['sha'])) {
-    $commits = Git::onelineLog($version_info['sha']);
-    return array($version_info['sha'], reset($commits));
-  }
-
-  if (empty($version_info['version'])) {
-    throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
-  }
-  $prefix = $version_info['is_core'] ? '' : $version_info['core'] . '-';
-  $branch       = 'origin/' . $prefix . $version_info['major'] . '.x';
-  $tag          = $prefix . $version_info['version'];
-  $checkout_ref = $prefix . $version_info['version'];
-  if ($version_info['commits']) {
-    // Get history from base version to head.  Flip the order so we have the
-    // oldest commit first.
-    $commits = array_reverse(Git::onelineLog($tag, $branch));
-    // Pick out the nth commit, and split the line.
-    return explode(' ', $commits[$version_info['commits'] - 1], 2);
-  }
-  return array($checkout_ref, NULL);
 }
 
 /**
@@ -1219,8 +1016,6 @@ function _bandaid_inject_info_file_metadata($project_dir, $project_name, $versio
  * Extract patch urls from a Drupal issue URL.
  */
 function _bandaid_get_patches_from_issue($url) {
-
-  // $patches = array();
   $client = new Client();
   $crawler = $client->request('GET', $url);
   $patches = $crawler->filter('#extended-file-field-table-field-issue-files tr')->each(function ($row) {
@@ -1255,42 +1050,4 @@ function _bandaid_get_patches_from_issue($url) {
   }
   ksort($return);
   return $return;
-}
-
-/**
- * Writes the [projectname].yml file.
- *
- * @deprecated by Project::save().
- */
-function _bandaid_write_yaml($project) {
-  // If the patches are empty, remove the empty array. Primarily to get the
-  // following check to delete the file if it would be totally empty, but also,
-  // in the case that there's other user added data that'll be written, to avoid
-  // an empty list in the YAML.
-  if (isset($project['yaml']['patches']) &&
-    empty($project['yaml']['patches'])) {
-    unset($project['yaml']['patches']);
-  }
-
-  // Delete the file if we have no content for it.
-  if (empty($project['yaml'])) {
-    if (file_exists($project['yaml_file'])) {
-      unlink($project['yaml']);
-    }
-  }
-
-  // Prepare the output.
-  $new_yaml = Yaml::dump($project['yaml'], 4, 2);
-
-  $current_yaml = FALSE;
-  // Get the current contents of the file.
-  if (file_exists($project['yaml_file'])) {
-    $current_yaml = file_get_contents($project['yaml_file']);
-  }
-
-  // Write the yaml if we have any new content.
-  // Only switch to inline format at level 4.
-  if ($new_yaml != $current_yaml && !file_put_contents($project['yaml_file'], $new_yaml)) {
-    throw new BandaidError('CANNOT_WRITE_YAML', dt('Error writing new YAML file @file', array('@file' => $project['yaml_file'])));
-  }
 }
