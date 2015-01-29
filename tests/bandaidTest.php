@@ -650,17 +650,27 @@ EOF;
    */
   public function testGitRepo() {
     $workdir = $this->webroot() . '/sites/all/modules';
+    $origin = 'https://github.com/Biblioteksvagten/ask_vopros.git';
+    $revision = '6106220e8cfca7a6911a71ac147d19d27cec8b63';
     $cwd = getcwd();
     chdir($workdir);
     // Using a non-drupal.org project.
-    $this->execute('git clone https://github.com/Biblioteksvagten/ask_vopros.git');
+    $this->execute('git clone ' . $origin);
     chdir('ask_vopros');
     // Check out some revision.
-    $this->execute('git checkout 6106220e8cfca7a6911a71ac147d19d27cec8b63');
+    $this->execute('git checkout ' . $revision);
     chdir($workdir);
 
     // Ungit it.
     $this->drush('bandaid-degit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
+
+    // The YAML file should have been created.
+    $this->assertTrue(file_exists('ask_vopros.yml'));
+    $yaml = Yaml::parse('ask_vopros.yml');
+
+    $this->assertEquals('git', $yaml['project']['type']);
+    $this->assertEquals($origin, $yaml['project']['origin']);
+    $this->assertEquals($revision, $yaml['project']['revision']);
 
     // Ensure that the git dir has been removed.
     $this->assertFalse(file_exists('ask_vopros/.git'));
@@ -687,6 +697,15 @@ EOF;
     $this->assertEquals(trim($expected_diff), trim($this->getOutput()));
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
 
+    // Check that the YAML file is still valid.
+    $this->assertTrue(file_exists('ask_vopros.yml'));
+    $yaml = Yaml::parse('ask_vopros.yml');
+
+    $this->assertEquals('git', $yaml['project']['type']);
+    $this->assertEquals($origin, $yaml['project']['origin']);
+    $this->assertEquals($revision, $yaml['project']['revision']);
+
+
     // Tearoff the local changes and check that they're gone.
     $this->drush('bandaid-tearoff', array('ask_vopros'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
@@ -695,6 +714,14 @@ EOF;
     // Ensure that we got a local patch file and it contains the expected.
     $this->assertFileExists($local_patch);
     $this->assertEquals($expected_patch, file_get_contents($local_patch));
+
+    // Check that the YAML file is still valid.
+    $this->assertTrue(file_exists('ask_vopros.yml'));
+    $yaml = Yaml::parse('ask_vopros.yml');
+
+    $this->assertEquals('git', $yaml['project']['type']);
+    $this->assertEquals($origin, $yaml['project']['origin']);
+    $this->assertEquals($revision, $yaml['project']['revision']);
 
     // Regit it.
     $this->drush('bandaid-regit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);

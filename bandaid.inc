@@ -283,9 +283,19 @@ class Project {
   protected $origin = NULL;
 
   /**
+   * Originally detected repository origin.
+   */
+  protected $detectedOrigin = NULL;
+
+  /**
    * Repository revision.
    */
   protected $revision = NULL;
+
+  /**
+   * Originally detected repository revision.
+   */
+  protected $detectedRevision = NULL;
 
   /**
    * Parsed info file data.
@@ -462,6 +472,18 @@ class Project {
   }
 
   /**
+   * Set the origin repository.
+   *
+   * @param string $origin
+   *   New origin url.
+   *
+   * @todo validation?
+   */
+  public function setOrigin($origin) {
+    $this->origin = $origin;
+  }
+
+  /**
    * Get the origin revision.
    *
    * @param string $checkout
@@ -474,6 +496,16 @@ class Project {
       throw new BandaidError('NO_REVISION', dt('I have no idea what revision to check out.'));
     }
     return $this->revision;
+  }
+
+  /**
+   * Set the origin revision.
+   *
+   * @param string $revision
+   *   The new revision.
+   */
+  public function setRevision($revision) {
+    $this->revision = $revision;
   }
 
   /**
@@ -502,6 +534,28 @@ class Project {
    * Write the YAML file.
    */
   public function save() {
+    if ($this->detectedOrigin != $this->origin ||
+        $this->detectedRevision != $this->revision) {
+      if (!isset($this->yaml['project'])) {
+        $this->yaml['project'] = array();
+      }
+      $this->yaml['project']['type'] = 'git';
+      $this->yaml['project']['origin'] = $this->origin;
+      $this->yaml['project']['revision'] = $this->revision;
+    }
+    else {
+      if (isset($this->yaml['project'])) {
+        unset(
+          $this->yaml['project']['type'],
+          $this->yaml['project']['origin'],
+          $this->yaml['project']['revision']
+        );
+        if (empty($this->yaml['project'])) {
+          unset($this->yaml['project']);
+        }
+      }
+    }
+
     // Delete the file if we have no content for it.
     $filename = $this->getYamlFileName();
     if (empty($this->yaml)) {
@@ -512,7 +566,6 @@ class Project {
 
     // Prepare the output. Only switch to inline format at level 4.
     $new_yaml = Yaml::dump($this->yaml, 4, 2);
-
     $current_yaml = FALSE;
     // Get the current contents of the file.
     if (file_exists($filename)) {
@@ -543,7 +596,7 @@ class Project {
   protected function loadYaml() {
     $yamlfile = $this->getYamlFileName();
     if (file_exists($yamlfile)) {
-      $this->yaml = Yaml::parse($yamlfile);
+      $this->yaml = Yaml::parse(file_get_contents($yamlfile));
       return TRUE;
     }
 
@@ -582,18 +635,14 @@ class Project {
 
     if (isset($this->yaml['project']['type'])) {
       // Defined in the YAML, validate.
-      // @todo a bit odd to validate revision here.
+      // @todo duplicated code with ensureRevision..
       if ($this->yaml['project']['type'] !== 'git') {
         throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
       }
       elseif (empty($this->yaml['project']['origin'])) {
         throw new BandaidError('NO_PROJECT_ORIGIN', dt('No origin repository in YAML file."'));
       }
-      elseif (empty($this->yaml['project']['revision'])) {
-        throw new BandaidError('NO_PROJECT_REVISION', dt('No origin revision in YAML file."'));
-      }
       $this->origin = $this->yaml['project']['origin'];
-      $this->revision = $this->yaml['project']['revision'];
     }
     else {
       if ($this->core) {
@@ -602,48 +651,68 @@ class Project {
       else {
         $this->ensureVersionInfo();
         $project = $this->versionInfo['project'];
+        if (empty($project)) {
+          throw new BandaidError('NO_PROJECT', dt('No "project" in info file.'));
+        }
       }
       $this->origin = 'http://git.drupal.org/project/' . $project;
+      $this->detectedOrigin = $this->origin;
     }
+
   }
 
   /**
    * Make sure we've figured out the revision to check out.
    */
   protected function ensureRevision($checkout = NULL) {
+    $this->ensureOrigin();
     if ($this->revision) {
-      // Already parsed. ensureOrigin might have done it.
+      // Already parsed.
       return;
     }
 
-    $this->ensureVersionInfo();
-    if (!empty($this->versionInfo['sha'])) {
-      $this->revision = $this->versionInfo['sha'];
-    }
-    elseif (empty($this->versionInfo['version'])) {
-      throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
-    }
-    $prefix = $this->core ? '' : $this->versionInfo['core'] . '-';
-    $revision = $prefix . $this->versionInfo['version'];
-    if ($this->versionInfo['commits']) {
-      // If we don't have a checkout to examine, bomb out.
-      if (!$checkout) {
-        return;
+    if (isset($this->yaml['project']['type'])) {
+      // Defined in the YAML, validate.
+      // @todo duplicated code with ensureOrigin..
+      if ($this->yaml['project']['type'] !== 'git') {
+        throw new BandaidError('UNKNOWN_PROJECT_TYPE', dt('Unknown project type in YAML file: "@type"', array('@type' => $this->yaml['project']['type'])));
       }
-
-      $branch = 'origin/' . $prefix . $this->versionInfo['major'] . '.x';
-      $tag    = $prefix . $this->versionInfo['version'];
-      $cwd = getcwd();
-      chdir($checkout);
-      // Get history from base version to head.  Flip the order so we have the
-      // oldest commit first.
-      $commits = array_reverse(Git::onelineLog($tag, $branch));
-      chdir($cwd);
-      // Pick out the nth commit, and split the line.
-      $split = explode(' ', $commits[$this->versionInfo['commits'] - 1], 2);
-      $revision = $split[0];
+      elseif (empty($this->yaml['project']['revision'])) {
+        throw new BandaidError('NO_PROJECT_REVISION', dt('No origin revision in YAML file."'));
+      }
+      $this->revision = $this->yaml['project']['revision'];
     }
-    $this->revision = $revision;
+    else {
+      $this->ensureVersionInfo();
+      if (!empty($this->versionInfo['sha'])) {
+        $this->revision = $this->versionInfo['sha'];
+      }
+      elseif (empty($this->versionInfo['version'])) {
+        throw new BandaidError('NO_VERSION', dt('No "version" in info file.'));
+      }
+      $prefix = $this->core ? '' : $this->versionInfo['core'] . '-';
+      $revision = $prefix . $this->versionInfo['version'];
+      if ($this->versionInfo['commits']) {
+        // If we don't have a checkout to examine, bomb out.
+        if (!$checkout) {
+          return;
+        }
+
+        $branch = 'origin/' . $prefix . $this->versionInfo['major'] . '.x';
+        $tag    = $prefix . $this->versionInfo['version'];
+        $cwd = getcwd();
+        chdir($checkout);
+        // Get history from base version to head.  Flip the order so we have the
+        // oldest commit first.
+        $commits = array_reverse(Git::onelineLog($tag, $branch));
+        chdir($cwd);
+        // Pick out the nth commit, and split the line.
+        $split = explode(' ', $commits[$this->versionInfo['commits'] - 1], 2);
+        $revision = $split[0];
+      }
+      $this->revision = $revision;
+      $this->detectedRevision = $this->revision;
+    }
   }
 
   /**
