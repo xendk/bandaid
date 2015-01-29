@@ -273,6 +273,13 @@ class Project {
   protected $yaml = NULL;
 
   /**
+   * Whether we loaded a legacy YAML file.
+   *
+   * We've changed the extension.
+   */
+  protected $yamlLegacy = FALSE;
+
+  /**
    * Whether we've detected that this project is core.
    */
   protected $core = FALSE;
@@ -369,6 +376,13 @@ class Project {
    * Path to the YAML file.
    */
   public function getYamlFileName() {
+    return $this->auxFileBase() . '.omg.yml';
+  }
+
+  /**
+   * Legacy path to the YAML file.
+   */
+  public function getLegacyYamlFileName() {
     return $this->auxFileBase() . '.yml';
   }
 
@@ -434,7 +448,8 @@ class Project {
       list($major, $minor) = explode('.', $this->core, 2);
       if ($major == 7) {
         return array(
-          'core.yml',
+          'core.yml', // Legacy.
+          'core.omg.yml',
           'core.local.patch',
           'sites/all/modules',
           '!sites/all/modules/README.txt',
@@ -539,6 +554,18 @@ class Project {
   public function save() {
     $this->updateUpstream();
 
+    // Prepare the output. Only switch to inline format at level 4.
+    $new_yaml = Yaml::dump($this->yaml, 4, 2);
+
+    // If we loaded from a legacy YAML, remove it.
+    if ($this->yamlLegacy && !empty($this->yaml)) {
+      $legacyname = $this->getLegacyYamlFileName();
+      if (file_exists($legacyname)) {
+        drush_log(dt("Renaming YAML file from .yml to .omg.yml"), 'warning');
+        unlink($legacyname);
+      }
+
+    }
     // Delete the file if we have no content for it.
     $filename = $this->getYamlFileName();
     if (empty($this->yaml)) {
@@ -547,8 +574,6 @@ class Project {
       }
     }
 
-    // Prepare the output. Only switch to inline format at level 4.
-    $new_yaml = Yaml::dump($this->yaml, 4, 2);
     $current_yaml = FALSE;
     // Get the current contents of the file.
     if (file_exists($filename)) {
@@ -605,8 +630,14 @@ class Project {
    */
   protected function loadYaml() {
     $yamlfile = $this->getYamlFileName();
+    $legacyname = $this->getLegacyYamlFileName();
     if (file_exists($yamlfile)) {
       $this->yaml = Yaml::parse(file_get_contents($yamlfile));
+      return TRUE;
+    }
+    elseif (file_exists($legacyname)) {
+      $this->yaml = Yaml::parse(file_get_contents($legacyname));
+      $this->yamlLegacy = TRUE;
       return TRUE;
     }
 

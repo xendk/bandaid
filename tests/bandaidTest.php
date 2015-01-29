@@ -81,13 +81,13 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/panels'));
 
     // We should have a yaml file now.
-    $this->assertFileExists($workdir . '/panels.yml');
+    $this->assertFileExists($workdir . '/panels.omg.yml');
 
     // And that the patch was added.
-    $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'https://drupal.org/files/issues/panels-new-pane-alter-1985980-5.patch');
 
     // And that we have a info-file entry.
-    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'panels.info');
 
     $options = array(
       'home' => 'https://drupal.org/node/2098515',
@@ -100,10 +100,10 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/panels'));
 
     // Check that yaml file has been updated.
-    $this->assertFileContains($workdir . '/panels.yml', 'https://drupal.org/files/issues/undefined_property_notices_fix-2098515-2.patch');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'https://drupal.org/files/issues/undefined_property_notices_fix-2098515-2.patch');
 
     // And that we have a info-file entry.
-    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'panels.info');
 
     // Add a local modification to the module file.
     $content = file_get_contents($workdir . '/panels/panels.module');
@@ -121,7 +121,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
 
     // And that we have a info-file entry.
-    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'panels.info');
 
     $options = array(
       'info-file' => 'panels.info',
@@ -132,7 +132,7 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
 
     // And that we have a info-file entry.
-    $this->assertFileContains($workdir . '/panels.yml', 'panels.info');
+    $this->assertFileContains($workdir . '/panels.omg.yml', 'panels.info');
 
     $local_patch = $workdir . '/panels.local.patch';
     // Ensure that we got a local patch file and it contains the expected.
@@ -176,10 +176,10 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
 
     // We should have a yaml file now.
-    $this->assertFileExists($workdir . '/exif_custom.yml');
+    $this->assertFileExists($workdir . '/exif_custom.omg.yml');
 
     // And that the patch was added.
-    $this->assertFileContains($workdir . '/exif_custom.yml', 'https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
+    $this->assertFileContains($workdir . '/exif_custom.omg.yml', 'https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
 
     // Add a local modification to the module file (we're prepending as they're
     // happening too much at the end of the file).
@@ -285,7 +285,7 @@ EOF;
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
 
     // Check that the yaml file has been updated.
-    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
+    $this->assertFileContains($workdir . '/snapengage.omg.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
 
     // Apply another patch, and check for success.
     $options = array(
@@ -298,7 +298,7 @@ EOF;
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
 
     // Check that the yaml file has been updated.
-    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
+    $this->assertFileContains($workdir . '/snapengage.omg.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
 
     // Tearoff the patches and check that they're gone.
     $this->drush('bandaid-tearoff', array('snapengage'), array(), NULL, $workdir);
@@ -325,8 +325,8 @@ EOF;
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
     $this->assertNotEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
     // Check that the yaml file contains the right patches.
-    $this->assertFileNotContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
-    $this->assertFileContains($workdir . '/snapengage.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
+    $this->assertFileNotContains($workdir . '/snapengage.omg.yml', 'https://drupal.org/files/snapengage-panels-integration-1916982-4.patch');
+    $this->assertFileContains($workdir . '/snapengage.omg.yml', 'https://drupal.org/files/snapengage-integrate-new-api-code.patch');
   }
 
   /**
@@ -372,8 +372,8 @@ EOF;
 
     $this->drush('bandaid-degit', array('virtual_field'), array('y' => TRUE), NULL, $workdir);
     // The YAML file should have been created.
-    $this->assertTrue(file_exists('virtual_field.yml'));
-    $yaml = Yaml::parse('virtual_field.yml');
+    $this->assertTrue(file_exists('virtual_field.omg.yml'));
+    $yaml = Yaml::parse('virtual_field.omg.yml');
 
     $this->assertEquals('git', $yaml['project']['type']);
     $this->assertEquals('http://git.drupal.org/project/virtual_field.git', $yaml['project']['origin']);
@@ -413,7 +413,7 @@ EOF;
     $this->assertTrue(file_exists('virtual_field/.git'));
 
     // The YAML file shouldn't have been created.
-    $this->assertFalse(file_exists('virtual_field.yml'));
+    $this->assertFalse(file_exists('virtual_field.omg.yml'));
 
     $this->drush('bandaid-degit', array('virtual_field'), array('y' => TRUE), NULL, $workdir);
     // Check that the .git dir have been removed.
@@ -500,10 +500,10 @@ EOF;
     $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
 
     // We should have a yaml file now.
-    $this->assertFileExists($workdir . '/exif_custom.yml');
+    $this->assertFileExists($workdir . '/exif_custom.omg.yml');
 
     // And that the patch was added.
-    $this->assertFileContains($workdir . '/exif_custom.yml', 'https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
+    $this->assertFileContains($workdir . '/exif_custom.omg.yml', 'https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
 
     // Add a local modification with trailing whitespace to the module file
     // (we're prepending as they're happening too much at the end of the file).
@@ -573,10 +573,10 @@ EOF;
     $this->assertFileContains($drupal_dir . '/sites/all/modules/banana/banana.module', 'fake');
 
     // We should have a yaml file now.
-    $this->assertFileExists($drupal_dir . '/core.yml');
+    $this->assertFileExists($drupal_dir . '/core.omg.yml');
 
     // And that the patch was added.
-    $this->assertFileContains($drupal_dir . '/core.yml', 'https://www.drupal.org/files/issues/secteam-2249025-11.patch');
+    $this->assertFileContains($drupal_dir . '/core.omg.yml', 'https://www.drupal.org/files/issues/secteam-2249025-11.patch');
 
     // Add a local modification to the module file.
     $content = file_get_contents($drupal_dir . '/modules/user/user.module');
@@ -665,8 +665,8 @@ EOF;
     $this->drush('bandaid-degit', array('ask_vopros'), array('y' => TRUE), NULL, $workdir);
 
     // The YAML file should have been created.
-    $this->assertTrue(file_exists('ask_vopros.yml'));
-    $yaml = Yaml::parse('ask_vopros.yml');
+    $this->assertTrue(file_exists('ask_vopros.omg.yml'));
+    $yaml = Yaml::parse('ask_vopros.omg.yml');
 
     $this->assertEquals('git', $yaml['project']['type']);
     $this->assertEquals($origin, $yaml['project']['origin']);
@@ -698,8 +698,8 @@ EOF;
     $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
 
     // Check that the YAML file is still valid.
-    $this->assertTrue(file_exists('ask_vopros.yml'));
-    $yaml = Yaml::parse('ask_vopros.yml');
+    $this->assertTrue(file_exists('ask_vopros.omg.yml'));
+    $yaml = Yaml::parse('ask_vopros.omg.yml');
 
     $this->assertEquals('git', $yaml['project']['type']);
     $this->assertEquals($origin, $yaml['project']['origin']);
@@ -716,8 +716,8 @@ EOF;
     $this->assertEquals($expected_patch, file_get_contents($local_patch));
 
     // Check that the YAML file is still valid.
-    $this->assertTrue(file_exists('ask_vopros.yml'));
-    $yaml = Yaml::parse('ask_vopros.yml');
+    $this->assertTrue(file_exists('ask_vopros.omg.yml'));
+    $yaml = Yaml::parse('ask_vopros.omg.yml');
 
     $this->assertEquals('git', $yaml['project']['type']);
     $this->assertEquals($origin, $yaml['project']['origin']);
