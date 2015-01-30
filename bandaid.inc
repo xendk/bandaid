@@ -175,8 +175,8 @@ class Git {
    * Add files to index, from another work-tree.
    */
   public static function addFrom($work_tree, $pattern, $all = FALSE) {
-    $all = $all ? '--all' : '';
-    return static::exec('git --work-tree=%s add %s %s', array($work_tree, $all, $pattern), 'CANNOT_ADD');
+    $args = array($work_tree, $all ? '--all' : '', $pattern);
+    return static::exec('git --work-tree=%s add %s %s', $args, 'CANNOT_ADD');
   }
 
   /**
@@ -215,9 +215,9 @@ class Git {
    * @todo fix up the signature.
    */
   public static function resetTo($work_tree, $hard = FALSE, $path = '') {
-    $hard = $hard ? '--hard' : '';
+    $args = array($work_tree, $hard ? '--hard' : '', $path);
     // The double dash is rather important.
-    return static::exec('git --work-tree=%s reset %s -- %s', array($work_tree, $hard, $path), 'CANNOT_RESET');
+    return static::exec('git --work-tree=%s reset %s -- %s', $args, 'CANNOT_RESET');
   }
 
   /**
@@ -315,7 +315,7 @@ class Project {
   /**
    * Constructor.
    *
-   * @param sting $path
+   * @param string $path
    *   Path to project.
    */
   public function __construct($path = NULL) {
