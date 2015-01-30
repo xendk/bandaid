@@ -446,7 +446,8 @@ class Project {
       list($major, $minor) = explode('.', $this->core, 2);
       if ($major == 7) {
         return array(
-          'core.yml', // Legacy.
+          // Legacy handling. core.omg.yml used to be core.yml.
+          'core.yml',
           'core.omg.yml',
           'core.local.patch',
           'sites/all/modules',
@@ -522,7 +523,7 @@ class Project {
   }
 
   /**
-   * Get the message associated with .
+   * Get the message associated with ref.
    */
   public function getMessage($ref, $checkout = NULL) {
     if ($checkout) {
