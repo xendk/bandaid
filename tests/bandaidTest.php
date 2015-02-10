@@ -131,6 +131,9 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/panels'));
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/panels'));
 
+    // Regression test. Check that version is properly set in the info file.
+    $this->assertContains('version = "7.x-3.3"', file_get_contents($workdir . '/panels/panels.info'));
+
     // And that we have a info-file entry.
     $this->assertFileContains($workdir . '/panels.omg.yml', 'panels.info');
 
@@ -203,6 +206,9 @@ class BandaidFunctionalTestCase extends CommandUnishTestCase {
     $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    // Regression test. Check that version is properly set in the info file.
+    $this->assertContains('version = "7.x-1.13"', file_get_contents($workdir . '/exif_custom/exif_custom.info'));
 
     $local_patch = $workdir . '/exif_custom.local.patch';
     // Ensure that we got a local patch file and it contains the expected.
@@ -304,6 +310,9 @@ EOF;
     $this->drush('bandaid-tearoff', array('snapengage'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep($patch1_string, $workdir . '/snapengage'));
     $this->assertEmpty($this->grep($patch2_string, $workdir . '/snapengage'));
+
+    // Regression test. Check that version is properly set in the info file.
+    $this->assertContains('version = "7.x-1.1+2-dev"', file_get_contents($workdir . '/snapengage/snapengage.info'));
 
     // Update module.
     $this->drush('dl', array('snapengage-1.2'), array('y' => TRUE), NULL, $workdir);
@@ -469,6 +478,9 @@ EOF;
     // Tearoff the patches and check that they're gone.
     $this->drush('bandaid-tearoff', array('ultimate_cron'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ultimate_cron'));
+
+    // Regression test. Check that version is properly set in the info file.
+    $this->assertContains('version = "7.x-1.9+2-dev"', file_get_contents($workdir . '/ultimate_cron/ultimate_cron.info'));
 
     $local_patch = $workdir . '/ultimate_cron.local.patch';
     // Ensure that we got a local patch file and it contains the expected.
@@ -705,10 +717,12 @@ EOF;
     $this->assertEquals($origin, $yaml['project']['origin']);
     $this->assertEquals($revision, $yaml['project']['revision']);
 
-
     // Tearoff the local changes and check that they're gone.
     $this->drush('bandaid-tearoff', array('ask_vopros'), array(), NULL, $workdir);
     $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/ask_vopros'));
+
+    // Ensure that there's no runaway version in the file.
+    $this->assertTrue(strpos(file_get_contents($workdir . '/ask_vopros/ask_vopros.info'), 'version') === FALSE);
 
     $local_patch = $workdir . '/ask_vopros.local.patch';
     // Ensure that we got a local patch file and it contains the expected.

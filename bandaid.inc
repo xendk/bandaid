@@ -467,6 +467,13 @@ class Project {
   }
 
   /**
+   * Whether this is in fact core.
+   */
+  public function isCore() {
+    return $this->core;
+  }
+
+  /**
    * Whether this is cloned from drupal.org.
    */
   public function isFromDrupalOrg() {
@@ -543,9 +550,10 @@ class Project {
    */
   public function getInfoVersion() {
     $this->ensureVersionInfo();
-    if (empty($this->revision)) {
+    if (empty($this->infoVersion)) {
       throw new BandaidError('NO_INFO_VERSION', dt('No version found in info file.'));
     }
+    return $this->infoVersion;
   }
   /**
    * Write the YAML file.

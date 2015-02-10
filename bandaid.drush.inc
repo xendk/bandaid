@@ -299,7 +299,7 @@ function drush_bandaid_tearoff($project = NULL) {
     // Return to a pristine checkout.
     Git::checkout($project->getRevision());
 
-    if ($project->isFromDrupalOrg()) {
+    if (!$project->isCore() && $project->isFromDrupalOrg()) {
       // Generate a version-string like d.o and drush would do, if
       // there was one before.
       _bandaid_inject_info_file_metadata($checkout_dir, $project->getName(), $project->getInfoVersion());
