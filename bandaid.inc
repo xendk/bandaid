@@ -403,7 +403,7 @@ class Project {
    */
   public function getPatches() {
     if (!empty($this->yaml['patches'])) {
-      return $this->yaml['patches'];
+      return $this->prepareLocalPaths($this->yaml['patches']);
     }
 
     return array();
@@ -798,5 +798,23 @@ class Project {
         $this->versionInfo = $parsed_info;
       }
     }
+  }
+
+  /**
+   * Make any relative local file-system paths absolute.
+   */
+  private function prepareLocalPaths($patches) {
+    foreach ($patches as $patch_id => $patch_info) {
+      // Only process the path if it is not currently a valid URL.
+      if (parse_url($patch_info['patch'], PHP_URL_SCHEME) == NULL) {
+        $absolute_path = realpath($this->path . DIRECTORY_SEPARATOR . $patches[$patch_id]['patch']);
+
+        // Only update the path if we actually fixed anything.
+        if (is_file($absolute_path)) {
+          $patches[$patch_id]['patch'] = $absolute_path;
+        }
+      }
+    }
+    return $patches;
   }
 }
