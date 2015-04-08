@@ -7,6 +7,8 @@
 
 namespace Unish;
 
-abstract class CommandUnishTestCase extends \Drush_CommandTestCase {}
+abstract class CommandUnishTestCase extends \Drush_CommandTestCase {
+    const UNISH_EXITCODE_USER_ABORT  = 0;
+}
 
 abstract class UnitUnishTestCase extends \Drush_UnitTestCase {}

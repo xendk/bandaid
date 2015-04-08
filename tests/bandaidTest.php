@@ -352,7 +352,7 @@ EOF;
     $this->assertRegExp('/ bandaid-tearoff \\(bt\\) +Tear off patches\\./', $output);
 
     // Check the little known filter listing.
-    $this->drush('help', array(), array('filter' => NULL, 'y' => TRUE));
+    $this->drush('help', array(), array('filter' => NULL, 'y' => TRUE), NULL, NULL, self::UNISH_EXITCODE_USER_ABORT);
     $this->assertRegExp('/Bandaid: Bandaid patch management\\./', $this->getOutput());
 
     // Check the summary on each command.
