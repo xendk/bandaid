@@ -785,7 +785,6 @@ EOF;
     $options = array(
       'home' => '',
       'reason' => 'Allow for overriding when uploading multiple images.',
-      'debug' => true
     );
     $patch1_string = 'if(arg(3) == \'edit-multiple\'){return;}';
 

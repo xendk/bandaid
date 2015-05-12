@@ -441,7 +441,7 @@ class Project {
       if (!file_exists($patch['patch'])) {
         throw new BandaidInternalError('NONEXISTENT_PATCH', dt('Non-existent file passed to addPatch.'));
       }
-      $patch['patch'] = $this->relative_path($this->auxFileBasePath(), $patch['patch']);
+      $patch['patch'] = $this->relativePath($this->auxFileBasePath(), $patch['patch']);
     }
     $this->yaml['patches'][] = $patch;
   }
@@ -833,7 +833,7 @@ class Project {
    *
    * @see http://dk1.php.net/manual/en/function.realpath.php#105876
    */
-  protected function relative_path($from, $to, $ps = DIRECTORY_SEPARATOR) {
+  protected function relativePath($from, $to, $ps = DIRECTORY_SEPARATOR) {
     $ar_from = explode($ps, rtrim($from, $ps));
     $ar_to = explode($ps, rtrim($to, $ps));
     while (count($ar_from) && count($ar_to) && ($ar_from[0] == $ar_to[0])) {
