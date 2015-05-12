@@ -548,7 +548,7 @@ class Project {
       chdir($checkout);
       $commits = array_reverse(Git::onelineLog($ref));
       chdir($cwd);
-      list($dummy, $message) = explode(' ', reset($commits));
+      list($dummy, $message) = explode(' ', reset($commits), 2);
       return $message;
     }
 
