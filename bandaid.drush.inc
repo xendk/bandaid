@@ -206,14 +206,16 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     if ($info_file = drush_get_option('info-file', NULL)) {
       $project->setInfoFileName($info_file);
     }
-    chdir($project->getPath());
+    $cwd = getcwd();
 
     // Translate to patch URL if pointing at an issue.
     $patch = _bandaid_patch_from_issue($patch);
 
     $filename = _bandaid_get_file($patch);
 
+    chdir($project->getPath());
     $patched = _bandaid_attempt_patch($filename);
+    chdir($cwd);
 
     if (!$patched) {
       throw new BandaidError('PATCHING_FAILED', dt('Could not apply patch.'));
