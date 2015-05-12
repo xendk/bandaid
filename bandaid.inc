@@ -589,6 +589,7 @@ class Project {
       if (file_exists($filename)) {
         unlink($filename);
       }
+      return;
     }
 
     $current_yaml = FALSE;

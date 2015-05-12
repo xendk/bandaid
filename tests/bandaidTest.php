@@ -820,6 +820,60 @@ EOF;
   }
 
   /**
+   * Test that having purely local changes works without creating a YAML file.
+   */
+  public function testPureLocal() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
+
+    // We shouldn't have a yaml file.
+    $this->assertFileNotExists($workdir . '/exif_custom.omg.yml');
+
+    // Add a local modification to the module file.
+    $content = file_get_contents($workdir . '/exif_custom/exif_custom.module');
+    $content = "\$var = \"Local modification.\";\n" . $content;
+    file_put_contents($workdir . '/exif_custom/exif_custom.module', $content);
+
+    $expected_diff = "diff --git a/exif_custom.module b/exif_custom.module\nindex 01c340f..673467b 100644\n--- a/exif_custom.module\n+++ b/exif_custom.module\n@@ -1,3 +1,4 @@\n+\$var = \"Local modification.\";\n <?php\n \n /**\n";
+
+    // Do a diff to a file and check that it is as expected and the files
+    // haven't changed..
+    $diff_file = tempnam($workdir, 'patch_');
+    $this->drush('bandaid-diff', array('exif_custom', $diff_file), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    $this->assertFileExists($diff_file);
+    $this->assertEquals($expected_diff, file_get_contents($diff_file));
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
+
+    // We still shouldn't have a yaml file.
+    $this->assertFileNotExists($workdir . '/exif_custom.omg.yml');
+
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+
+    $local_patch = $workdir . '/exif_custom.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+
+    // Upgrade exif_custom.
+    $this->drush('dl', array('exif_custom-1.14'), array('y' => TRUE), NULL, $workdir);
+
+    // Reapply patches.
+    $this->drush('bandaid-apply', array('exif_custom'), array(), NULL, $workdir);
+    // We still shouldn't have a yaml file.
+    $this->assertFileNotExists($workdir . '/exif_custom.omg.yml');
+
+    // The local patch file should be gone.
+    $this->assertFalse(file_exists($local_patch));
+
+    // And the project should contain the contents of the local patch.
+    $this->assertNotEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/exif_custom'));
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {
