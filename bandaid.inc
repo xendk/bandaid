@@ -423,8 +423,9 @@ class Project {
    * Add patch to project.
    */
   public function addPatch($patch) {
+    // We're not requiring 'home', as it doesn't really make sense for patches
+    // stored locally.
     if (!isset($patch['patch']) ||
-      !isset($patch['home']) ||
       !isset($patch['reason'])) {
       throw new BandaidInternalError('BAD_PATCH', dt('Bad patch passed to addPatch.'));
     }
@@ -433,6 +434,15 @@ class Project {
       $this->yaml['patches'] = array();
     }
 
+    // If pointing to a local file, check that it exists and adjust the path
+    // to be local to the yaml file.
+    if (parse_url($patch['patch'], PHP_URL_SCHEME) == NULL) {
+      $patch['patch'] = realpath($patch['patch']);
+      if (!file_exists($patch['patch'])) {
+        throw new BandaidInternalError('NONEXISTENT_PATCH', dt('Non-existent file passed to addPatch.'));
+      }
+      $patch['patch'] = $this->relative_path($this->auxFileBasePath(), $patch['patch']);
+    }
     $this->yaml['patches'][] = $patch;
   }
 
@@ -631,6 +641,12 @@ class Project {
     return $this->path;
   }
 
+  /**
+   * Base path of our aux files..
+   */
+  protected function auxFileBasePath() {
+    return dirname($this->auxFileBase());
+  }
 
   /**
    * Load YAML file.
@@ -801,17 +817,43 @@ class Project {
   }
 
   /**
+   * Get a relative path from one file/dir to another.
+   *
+   * This implementation is borrowed from php.net.
+   *
+   * @param string $from
+   *   The file to derive the relative path from.
+   * @param string $to
+   *   The file to get the relative path to.
+   * @param string $ps
+   *   (optional) Directory separator.
+   *
+   * @return string
+   *   The relative path from $from to $to.
+   *
+   * @see http://dk1.php.net/manual/en/function.realpath.php#105876
+   */
+  protected function relative_path($from, $to, $ps = DIRECTORY_SEPARATOR) {
+    $ar_from = explode($ps, rtrim($from, $ps));
+    $ar_to = explode($ps, rtrim($to, $ps));
+    while (count($ar_from) && count($ar_to) && ($ar_from[0] == $ar_to[0])) {
+      array_shift($ar_from);
+      array_shift($ar_to);
+    }
+    return str_pad('', count($ar_from) * 3, '..' . $ps) . implode($ps, $ar_to);
+  }
+
+  /**
    * Make any relative local file-system paths absolute.
    */
   private function prepareLocalPaths($patches) {
-    foreach ($patches as $patch_id => $patch_info) {
+    foreach ($patches as $patch_id => &$patch_info) {
       // Only process the path if it is not currently a valid URL.
       if (parse_url($patch_info['patch'], PHP_URL_SCHEME) == NULL) {
-        $absolute_path = realpath($this->path . DIRECTORY_SEPARATOR . $patches[$patch_id]['patch']);
-
-        // Only update the path if we actually fixed anything.
+        $absolute_path = realpath($this->auxFileBasePath() . DIRECTORY_SEPARATOR . $patch_info['patch']);
+        // Only update the path if we can see a file there.
         if (is_file($absolute_path)) {
-          $patches[$patch_id]['patch'] = $absolute_path;
+          $patch_info['patch'] = $absolute_path;
         }
       }
     }

@@ -769,6 +769,58 @@ EOF;
   }
 
   /**
+   * Check that local patches work.
+   */
+  public function testLocalPatches() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $patch_dir = $this->webroot() . '/sites/all/patches';
+    $patch_file = $patch_dir . '/le.patch';
+    mkdir($patch_dir);
+
+    $patch = file_get_contents('https://drupal.org/files/exif_override_multiple_images-2112241-1.patch');
+    file_put_contents($patch_file, $patch);
+
+    $this->drush('dl', array('exif_custom-1.13'), array(), NULL, $workdir);
+    // Apply a patch, and check for success.
+    $options = array(
+      'home' => '',
+      'reason' => 'Allow for overriding when uploading multiple images.',
+      'debug' => true
+    );
+    $patch1_string = 'if(arg(3) == \'edit-multiple\'){return;}';
+
+    // Ensure that the modifications aren't in the downloaded module.
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+
+    // Patch using a relative path.
+    $this->drush('bandaid-patch', array('../../patches/le.patch'), $options, NULL, $workdir . '/exif_custom');
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+
+    // Ensure that it's not been erroneously deleted.
+    $this->assertFileExists($patch_file);
+
+    // We should have a yaml file now.
+    $this->assertFileExists($workdir . '/exif_custom.omg.yml');
+
+    // And that the patch was added.
+    $this->assertFileContains($workdir . '/exif_custom.omg.yml', "patch: ../patches/le.patch");
+
+    // Check that tearoff works as expected.
+    $this->drush('bandaid-tearoff', array('exif_custom'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+
+    // Ensure that it's not been erroneously deleted.
+    $this->assertFileExists($patch_file);
+
+    // Reapply patches, and check that the patch is properly reapplied.
+    $this->drush('bandaid-apply', array('exif_custom'), array(), NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/exif_custom'));
+
+    // Ensure that it's not been erroneously deleted.
+    $this->assertFileExists($patch_file);
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {

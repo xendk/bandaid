@@ -211,7 +211,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     // Translate to patch URL if pointing at an issue.
     $patch = _bandaid_patch_from_issue($patch);
 
-    $filename = _bandaid_download_file($patch);
+    $filename = _bandaid_get_file($patch);
 
     $patched = _bandaid_attempt_patch($filename);
 
@@ -883,7 +883,7 @@ function _bandaid_patch($patches) {
   $processed_patches = array();
   foreach ($patches as $patch) {
     // Download the patch.
-    $filename = _bandaid_download_file($patch['patch']);
+    $filename = _bandaid_get_file($patch['patch']);
 
     // Set up string placeholders to pass to dt().
     $dt_args = array(
@@ -903,13 +903,10 @@ function _bandaid_patch($patches) {
       }
       Git::add('.', TRUE);
       Git::commit($message);
-      drush_op('unlink', $filename);
     }
     else {
       if (drush_get_option('ignore-failing', FALSE)) {
         drush_log(dt("Unable to patch with @filename, skipping.", $dt_args), 'error');
-        drush_op('unlink', $filename);
-
       }
       else {
         throw new BandaidError('PATCH_ERROR', dt("Unable to patch with @filename.", $dt_args));
@@ -920,9 +917,12 @@ function _bandaid_patch($patches) {
 }
 
 /**
- * Wrapper to drush_download_file().
+ * Download a file, if necessary.
  *
- * Originally stolen from Drush make.
+ * Originally stolen from Drush make. Will return the realpath of local files.
+ *
+ * Don't remove the file after use, this is done automatically for downloaded
+ * files, and local files shouldn't be removed.
  *
  * @param string $download
  *   The url of the file to download.
@@ -932,7 +932,14 @@ function _bandaid_patch($patches) {
  * @return string
  *   The location of the downloaded file, or FALSE on failure.
  */
-function _bandaid_download_file($download, $cache_duration = BANDAID_CACHE_LIFETIME_DEFAULT) {
+function _bandaid_get_file($download, $cache_duration = BANDAID_CACHE_LIFETIME_DEFAULT) {
+  if (parse_url($download, PHP_URL_SCHEME) == NULL) {
+    $file = realpath($download);
+    if (file_exists($file)) {
+      return $file;
+    }
+    throw new BandaidError('COULD_NOT_FIND_FILE', dt('File @url does not exist.', array('@url' => $download)));
+  }
   if (drush_get_option('no-cache', FALSE)) {
     $cache_duration = 0;
   }
@@ -945,6 +952,7 @@ function _bandaid_download_file($download, $cache_duration = BANDAID_CACHE_LIFET
   if (!$tmp_file) {
     throw new BandaidError('COULD_NOT_DOWNLOAD_FILE', dt('Could not download @url', array('@url' => $download)));
   }
+  drush_register_file_for_deletion($tmp_file);
   return $tmp_file;
 }
 
