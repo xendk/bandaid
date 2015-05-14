@@ -143,6 +143,18 @@ class Git {
   }
 
   /**
+   * Get the oneline log for the first commit dated before $datestamp.
+   */
+  public static function commitBefore($datestamp, $branch = NULL) {
+    if (empty($branch)) {
+      return static::exec('git log --before=%s --format=oneline -1', array($datestamp), 'CANNOT_GET_HISTORY');
+    }
+    else {
+      return static::exec('git log --before=%s --format=oneline -1 %s', array($datestamp, $branch), 'CANNOT_GET_HISTORY');
+    }
+  }
+
+  /**
    * Checkout branch/tag/sha.
    */
   public static function checkout($ref) {
@@ -747,23 +759,32 @@ class Project {
       }
       $prefix = $this->core ? '' : $this->versionInfo['core'] . '-';
       $revision = $prefix . $this->versionInfo['version'];
-      if ($this->versionInfo['commits']) {
+      if ($this->versionInfo['commits'] || $this->versionInfo['datestamp']) {
         // If we don't have a checkout to examine, bomb out.
         if (!$checkout) {
           return;
         }
 
         $branch = 'origin/' . $prefix . $this->versionInfo['major'] . '.x';
-        $tag    = $prefix . $this->versionInfo['version'];
         $cwd = getcwd();
         chdir($checkout);
-        // Get history from base version to head.  Flip the order so we have the
-        // oldest commit first.
-        $commits = array_reverse(Git::onelineLog($tag, $branch));
+        if ($this->versionInfo['commits']) {
+          $tag    = $prefix . $this->versionInfo['version'];
+          // Get history from base version to head. Flip the order so we have
+          // the oldest commit first.
+          $commits = array_reverse(Git::onelineLog($tag, $branch));
+          // Pick out the nth commit, and split the line.
+          $split = explode(' ', $commits[$this->versionInfo['commits'] - 1], 2);
+          $revision = $split[0];
+        }
+        else {
+          // Get the last commit dated before the timestamp.
+          $commits = Git::CommitBefore($this->versionInfo['datestamp'], $branch);
+          // Pick out the nth commit, and split the line.
+          $split = explode(' ', reset($commits), 2);
+          $revision = $split[0];
+        }
         chdir($cwd);
-        // Pick out the nth commit, and split the line.
-        $split = explode(' ', $commits[$this->versionInfo['commits'] - 1], 2);
-        $revision = $split[0];
       }
       $this->revision = $revision;
       $this->detectedRevision = $this->revision;
@@ -805,8 +826,9 @@ class Project {
 
         $parsed_info = array();
         if (!empty($info['version'])) {
+          $datestamp = isset($info['datestamp']) ? $info['datestamp'] : NULL;
           $this->infoVersion = $info['version'];
-          $parsed_info = _bandaid_parse_version($info['version']);
+          $parsed_info = _bandaid_parse_version($info['version'], $datestamp);
         }
 
         if (!empty($info['project'])) {

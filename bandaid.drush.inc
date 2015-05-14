@@ -658,19 +658,30 @@ function _bandaid_patch_from_issue($url) {
 
 /**
  * Parse a version string.
+ *
+ * @todo The datestamp parameter indicates that this needs to be rethought.
  */
-function _bandaid_parse_version($version) {
+function _bandaid_parse_version($version, $datestamp = NULL) {
   // Possibilities: 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
-  if (preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.(x-dev|(?P<minor>\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
-    if (!isset($matches['minor']) || (strlen($matches['minor']) == 0)) {
-      throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level is not supported.'));
-    }
+  if (preg_match('{^(?P<core>\\d\\.x)-(?P<major>\\d+)\\.((?P<minor>x|\\d+(?:-[a-z]+\\d+)?)(?:\\+(?P<commits>\\d+)-dev)?)}', $version, $matches)) {
     $version_info = array(
       'core' => $matches['core'],
       'version' => $matches['major'] . '.' . $matches['minor'],
       'major' => $matches['major'],
-      'commits' => empty($matches['commits']) ? '' : $matches['commits'],
+      'commits' => '',
+      'datestamp' => '',
     );
+    if ($matches['minor'] == 'x') {
+      if ($datestamp) {
+        $version_info['datestamp'] = $datestamp;
+      }
+      else {
+        throw new BandaidError('RAW_DEV_NOT_SUPPORTED', dt('Dev releases without a patch level or datestamp is not supported.'));
+      }
+    }
+    if ($matches['commits']) {
+      $version_info['commits'] = $matches['commits'];
+    }
   }
   // Detect a SHA, we accept sha's down to 12 chars, seems to be an accepted
   // minimum for the linux kernel https://lkml.org/lkml/2010/10/28/287.
@@ -973,7 +984,7 @@ function _bandaid_fix_info_files($dir) {
         break;
       }
     }
-    if ($i) {
+    if ($i > -1) {
       $lines = array_slice($lines, 0, $i);
       if (!file_put_contents($info_file->filename, implode("\n", $lines))) {
         throw new BandaidError('CANNOT_WRITE_INFO', dt('Could not write info file @file', array('@file' => $info_file->filename)));

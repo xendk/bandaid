@@ -488,7 +488,6 @@ EOF;
 
     $expected_diff = "diff --git a/ultimate_cron.module b/ultimate_cron.module\nindex 1cdf5b0..31daeaa 100755\n--- a/ultimate_cron.module\n+++ b/ultimate_cron.module\n@@ -1402,3 +1402,4 @@ function _ultimate_cron_default_settings(\$default_rule = NULL) {\n     'queue_lease_time' => '',\n   );\n }\n+\$var = \"Local modification.\";\n";
     $this->assertEquals($expected_diff, file_get_contents($local_patch));
-
   }
 
   /**
@@ -874,6 +873,64 @@ EOF;
   }
 
   /**
+   * Test that we handle dev releases without a major.
+   */
+  public function testNonMajorDev() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+
+    // We have to fake a dev release again.
+    $cwd = getcwd();
+    chdir($workdir);
+    $this->execute('git clone http://git.drupal.org/project/virtual_field');
+    chdir('virtual_field');
+    // This is a commit dated at 1372228647 unixtime.
+    $this->execute('git checkout 1bc9a89869585af58eddf5bc00640727150bba88');
+    // Un-gittify.
+    exec('rm -rf .git');
+
+    // Fudge the info file.
+    $info = file_get_contents('virtual_field.info');
+    $info .= <<<EOF
+
+; Information added by drupal.org packaging script on 0000-00-00
+project = virtual_field
+datestamp = "1372228649"
+EOF;
+    file_put_contents('virtual_field.info', $info);
+
+    // Add a local modification to the module file, that suffices for testing
+    // this case.
+    $content = file_get_contents($workdir . '/virtual_field/virtual_field.module');
+    $content .= "\$var = \"Local modification.\";\n";
+    file_put_contents($workdir . '/virtual_field/virtual_field.module', $content);
+
+    // This should fail as we can't work without knowing which branch to work
+    // on, which we can't know without a version in the info file.
+    $this->drush('bandaid-tearoff 2>&1', array('virtual_field'), array(), NULL, $workdir, self::EXIT_ERROR);
+    $this->assertRegExp('/No "version" in info file./', $this->getOutput());
+
+    // Now add the needed version.
+    $info = file_get_contents('virtual_field.info');
+    $info .= <<<EOF
+
+version = "7.x-1.x-dev"
+EOF;
+    file_put_contents('virtual_field.info', $info);
+    chdir($cwd);
+
+    // Tearoff the patches and check that they're gone.
+    $this->drush('bandaid-tearoff', array('virtual_field'), array(), NULL, $workdir);
+    $this->assertEmpty($this->grep('\$var = \"Local modification.\";', $workdir . '/virtual_field'));
+
+    $local_patch = $workdir . '/virtual_field.local.patch';
+    // Ensure that we got a local patch file and it contains the expected.
+    $this->assertFileExists($local_patch);
+
+    $expected_diff = "diff --git a/virtual_field.module b/virtual_field.module\nindex 51ff43f..8baf13a 100644\n--- a/virtual_field.module\n+++ b/virtual_field.module\n@@ -465,3 +465,4 @@ function virtual_field_form_field_ui_field_edit_form_alter(&\$form, &\$form_state,\n     \$form['field']['#access'] = FALSE;\n   }\n }\n+\$var = \"Local modification.\";\n";
+    $this->assertEquals($expected_diff, file_get_contents($local_patch));
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {
@@ -913,36 +970,73 @@ class BandaidVersionParsingCase extends UnitUnishTestCase {
   public function testVersionParsing() {
     // 7.x-1.4 7.x-1.4+3-dev 7.x-2.0-alpha8+33-dev 7.x-1.x-dev
     $tests = array(
-      '7.x-1.4' => array(
-        'core' => '7.x',
-        'major' => '1',
-        'commits' => '',
-        'version' => '1.4',
+      array(
+        '7.x-1.4',
+        NULL,
+        array(
+          'core' => '7.x',
+          'major' => '1',
+          'commits' => '',
+          'version' => '1.4',
+          'datestamp' => '',
+        ),
       ),
-      '7.x-1.4+3-dev' => array(
-        'core' => '7.x',
-        'major' => '1',
-        'commits' => '3',
-        'version' => '1.4',
+      array(
+        '7.x-1.4+3-dev',
+        NULL,
+        array(
+          'core' => '7.x',
+          'major' => '1',
+          'commits' => '3',
+          'version' => '1.4',
+          'datestamp' => '',
+        ),
       ),
-      '7.x-2.0-alpha8+33-dev' => array(
-        'core' => '7.x',
-        'major' => '2',
-        'commits' => '33',
-        'version' => '2.0-alpha8',
+      array(
+        '7.x-2.0-alpha8+33-dev',
+        NULL,
+        array(
+          'core' => '7.x',
+          'major' => '2',
+          'commits' => '33',
+          'version' => '2.0-alpha8',
+          'datestamp' => '',
+        ),
       ),
       // Full-length SHA.
-      '60d9f28801533fecc92216a60d444d89d80e7611' => array(
-        'sha' => '60d9f28801533fecc92216a60d444d89d80e7611',
+      array(
+        '60d9f28801533fecc92216a60d444d89d80e7611',
+        NULL,
+        array(
+          'sha' => '60d9f28801533fecc92216a60d444d89d80e7611',
+        ),
       ),
       // Minimum-length (12) SHA.
-      '60d9f2880153' => array(
-        'sha' => '60d9f2880153',
+      array(
+        '60d9f2880153',
+        NULL,
+        array(
+          'sha' => '60d9f2880153',
+        ),
       ),
+      // Using datestamp.
+      array(
+        '7.x-1.x-dev',
+        '1231535435',
+        array(
+          'core' => '7.x',
+          'major' => '1',
+          'commits' => '',
+          'version' => '1.x',
+          'datestamp' => '1231535435',
+        ),
+      ),
+
     );
 
-    foreach ($tests as $version => $parsed) {
-      $this->assertEquals($parsed, _bandaid_parse_version($version));
+    foreach ($tests as $test) {
+      list($version, $datestamp, $expexted) = $test;
+      $this->assertEquals($expexted, _bandaid_parse_version($version, $datestamp));
     }
 
     // Test version strings that should fail (a dev-version without patch-level
