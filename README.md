@@ -55,26 +55,40 @@ Commands, in the order they'll be useful:
 
 ### Patching ###
 
-    drush bandaid-patch <url of patch|d.o issue> [project path]
+    drush bandaid-patch <patch file|url of patch|d.o issue> [project path]
 
-Project path is the path to the project you want to patch. Optional if you are issuing the command from the module's or projects's directory.
+Project path is the path to the project you want to patch. Optional if
+you are issuing the command from the module's or project's directory.
+
+Will patch the module with supplied patch, and if successful pop up
+your editor for a reason for patching (to remind your future you why
+you did this in the first place). This information will be written to
+a .yml file next to the module directory. You can edit the YAML file
+if the need be, but be aware that it's used by the following commands.
+
+If the supplied patch is a local file, it will be saved to the YAML
+file with a path relative to the YAML file, so it is assumed that
+local patches are committed to the repository.
+
+Example:
+
+    drush bandaid-patch patches/panels-something.patch  sites/all/modules/contrib/panels
+
+Use the given patch and save it in the .yml file as
+`../../../patches/panels-something.patch`.
 
 Example:
 
     drush bandaid-patch https://www.drupal.org/node/1985980#comment-8596585 sites/all/modules/contrib/panels
 
 Will patch the module with the patch from the fifth comment (cid
-8596585), and if successful pop up your editor for a reason for
-patching (to remind your future you why you did this in the first
-place). This information will be written to a .yml file next to the
-module directory. You can edit the yaml file if the need be, but be
-aware that it's used by the following commands.
+8596585).
 
-For issue urls, the "home" of the patch is automatically set to the
-issue url, for urls pointing directly to the patch, it will ask the
-you.
+For issue URLs, the "home" of the patch is automatically set to the
+issue URL, for URLs pointing directly to the patch/local files, it
+will ask the you.
 
-If supplied an issue url that doesn't point to a specific comment,
+If supplied an issue URL that doesn't point to a specific comment,
 it'll list the found patches and ask which to use.
 
 If you don't like the interactive questions, these can be supplied
@@ -86,8 +100,11 @@ at all.
 
 #### Failure mode ####
 
-Will crap all over your module with if the patch doesn't apply. A
-subtle reminder of the good practice of committing the original module first.
+Could theoretically crap all over your module if the patch doesn't
+apply properly. A subtle reminder of the good practice of committing
+the original module first. However, as `git` and `patch` is pretty
+conservative, it's unlikely they'd really foul up the module, and `git
+reset` should be able to fix it anyway.
 
 ### Checking local changes ###
 
@@ -123,14 +140,14 @@ You can now use `drush dl` to upgrade the module.
 
 #### Failure mode ####
 
-In the case that a patch from the yaml file doesn't apply cleanly, or
-other errors, it'll just stubbonly refuse to do anything, leaving it
+In the case that a patch from the YAML file doesn't apply cleanly, or
+other errors, it'll just stubbornly refuse to do anything, leaving it
 up to you to bisect your way to finding out whoever screwed up the
-yaml file or updated the module without properly dealing with the yaml
+YAML file or updated the module without properly dealing with the YAML
 file, and thus apply the clue stick upon.
 
 For less drastic fouls (such as patches applied but not mentioned in
-the yaml file), it'll just produce a local patch with more changes
+the YAML file), it'll just produce a local patch with more changes
 than you'd expect.
 
 ### Re-patching ###
@@ -169,6 +186,11 @@ If you have a project that is a git checkout, this command will make a
 note of the origin repository and the checked out revision in the YAML
 file.
 
+#### Failure mode ####
+
+As it deletes the .git directory, it *will* delete any un-committed
+changes, un-pushed commits and stashes.
+
 ### Re-gitting ###
 
     drush bandaid-regit [project path]
@@ -183,6 +205,11 @@ supplied with the `--origin` ande `--revision` command line options.
 
 This is handy for pushing changes upstream or updating projects
 downloaded via git.
+
+#### Failure mode ####
+
+Not being able to figure out the right origin and revision, which just
+leaves you where you started.
 
 In closing
 ----------
