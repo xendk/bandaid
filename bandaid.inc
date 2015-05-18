@@ -459,7 +459,7 @@ class Project {
   }
 
   /**
-   * Get files that git should ignore.
+   * Get files that git should ignore when doing diffs.
    *
    * @todo should do better than hardcoding D7 ignores.
    */
@@ -472,10 +472,10 @@ class Project {
           'core.yml',
           'core.omg.yml',
           'core.local.patch',
-          'sites/all/modules',
+          'sites/all',
           '!sites/all/modules/README.txt',
-          'sites/all/themes',
           '!sites/all/themes/README.txt',
+          'sites/all/libraries/README.txt',
           'sites/default',
           '!sites/default/default.settings.php',
           'profiles',
