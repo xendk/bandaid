@@ -796,6 +796,8 @@ function _bandaid_clone_from_info($project, $path) {
 /**
  * Clone a repo, with caching.
  *
+ * Doesn't check any revision out initially.
+ *
  * Uses the same cache as Drush make, code mostly lifted from makes
  * implementation.
  */
@@ -827,7 +829,10 @@ function _bandaid_clone($repo, $path) {
     $git_cache = $project_cache;
   }
 
-  $options = array();
+  $options = array(
+    // Don't check anything out initially.
+    'no-checkout' => TRUE,
+  );
   if (drush_get_context('DRUSH_VERBOSE')) {
     $options += array(
       'verbose' => TRUE,
