@@ -990,6 +990,11 @@ function _bandaid_fix_info_files($dir) {
       }
     }
     if ($i > -1) {
+      // Drush adds two new lines before the metadata whereas drupal.org just
+      // adds one line.
+      if (strstr($matches[0], 'drush')) {
+        $i--;
+      }
       $lines = array_slice($lines, 0, $i);
       if (!file_put_contents($info_file->filename, implode("\n", $lines))) {
         throw new BandaidError('CANNOT_WRITE_INFO', dt('Could not write info file @file', array('@file' => $info_file->filename)));
