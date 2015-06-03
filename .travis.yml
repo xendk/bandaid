@@ -1,38 +1,48 @@
 # Configuration for Travis CI at http://travis-ci.org/#!/xendk/bandaid
+
 language: php
+
 php:
   - 5.3
+  - 5.4
+
 env:
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=master COVERAGE=y UNISH_NO_TIMEOUTS=y
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.2.0
-  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=5.10.0
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=7.0.0 COVERAGE=y UNISH_NO_TIMEOUTS=y
+  - UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=6.6.0
+
+# matrix:
+#   exclude:
+#     - php: 5.3
+#     - env: UNISH_DB_URL=mysql://root:@127.0.0.1 DRUSH_VERSION=master COVERAGE=y UNISH_NO_TIMEOUTS=y
+      
 install:
-  # While composer is the prefered installation method for Drush 6+,
-  # we need to do it by hand as composer wont install dev
-  # dependencies, and we need those for runnig tests in Drush 7.
-  # And we need to update composer, as the autoload-dev option Drush 7
-  # uses is newer than the composer on Travis.
+  # We have to checkout drush and run composer install, rather than
+  # using composer global require, as the autoload-dev to load the
+  # test base classes is only added for root projects.
   - composer self-update
   - export PATH="$HOME/drush:$PATH"
   - export DRUSH_DIR=~/drush
   - git clone https://github.com/drush-ops/drush.git $DRUSH_DIR
   - cd $DRUSH_DIR 
   - git checkout $DRUSH_VERSION
-  # Install Drush composer dependencies for 6+.
-  - if ( test $DRUSH_VERSION != 5.10.0 ); then composer install --prefer-source; fi
+  # Install Drush dependencies.
+  - composer install --prefer-source
   - phpenv rehash
   - cd -
-  # Install dependencies.
+  # Install our dependencies.
   - composer install --prefer-source
   - if ( test ! -z $COVERAGE ); then mkdir cov; fi
   - if ( test ! -z $COVERAGE ); then export COVERAGE=--coverage-clover=`pwd`/cov/clover.xml; fi
 before_script:
-  - if ( test $DRUSH_VERSION = master ); then export CONFIG="--bootstrap=$DRUSH_DIR/tests/bootstrap.inc" ; else export CONFIG="--bootstrap=$DRUSH_DIR/tests/drush_testcase.inc"; fi
+  - if ( test $DRUSH_VERSION = 7.0.0 ); then export CONFIG="--bootstrap=$DRUSH_DIR/tests/bootstrap.inc" ; else export CONFIG="--bootstrap=$DRUSH_DIR/tests/drush_testcase.inc"; fi
   # Disable host key checking for d.o.
   - echo -e "Host git.drupal.org\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+
 script: phpunit $CONFIG $COVERAGE tests
+
 notifications:
   flowdock: 78b17a3314f1bac5207d8e65e391287b
+
 after_script:
   - if ( test ! -z $COVERAGE ); then wget https://scrutinizer-ci.com/ocular.phar; fi
   - if ( test ! -z $COVERAGE ); then php ocular.phar code-coverage:upload --format=php-clover cov/clover.xml; fi
