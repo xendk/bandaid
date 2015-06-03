@@ -931,6 +931,22 @@ EOF;
   }
 
   /**
+   * Test that removed files show up in diff.
+   *
+   * This is a regression test.
+   */
+  public function testRemovedFiles() {
+    $workdir = $this->webroot() . '/sites/all/modules';
+    $this->drush('dl', array('exif_custom-1.14'), array(), NULL, $workdir);
+
+    // Remove a file.
+    unlink($workdir . '/exif_custom/exif_custom.features.inc');
+
+    // Check that diff reports changes.
+    $this->drush('bandaid-diff', array('exif_custom'), array(), NULL, $workdir, self::EXIT_CODE_DIFF_DETECTED);
+  }
+
+  /**
    * Grep for a string.
    */
   protected function grep($string, $root) {

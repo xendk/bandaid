@@ -743,6 +743,8 @@ function _bandaid_clone_and_tearoff($project) {
 
   // Update repo work tree to what we just added.
   Git::checkout('.');
+  // And clean out any deleted files.
+  Git::clean();
 
   if ($project->isFromDrupalOrg()) {
     _bandaid_fix_info_files($checkout_dir);

@@ -266,6 +266,13 @@ class Git {
     array_unique($ignores);
     file_put_contents($exclude_file, implode("\n", $ignores));
   }
+
+  /**
+   * Cleans repository of untracked files.
+   */
+  public static function clean() {
+    static::exec('git clean -fd', array(), 'ERROR_CLEANING_REPO');
+  }
 }
 
 /**
