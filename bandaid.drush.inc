@@ -261,9 +261,7 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
       }
     }
 
-    if (!empty($reason)) {
-      $new_patch['reason'] = $reason;
-    }
+    $new_patch['reason'] = $reason;
 
     $project->addPatch($new_patch);
     $project->save();
