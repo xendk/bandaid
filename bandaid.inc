@@ -628,6 +628,10 @@ class Project {
    * Update the YAML data with current origin/revision, if needed.
    */
   protected function updateUpstream() {
+    // If origin/revision haven't been set, don't update the saved values.
+    if (empty($this->origin) && empty($this->revision)) {
+      return;
+    }
     if ($this->detectedOrigin != $this->origin ||
         $this->detectedRevision != $this->revision) {
       if (!isset($this->yaml['project'])) {

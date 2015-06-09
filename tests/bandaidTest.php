@@ -373,23 +373,42 @@ EOF;
     $workdir = $this->webroot() . '/sites/all/modules';
     $cwd = getcwd();
     chdir($workdir);
-    $this->execute('git clone http://git.drupal.org/project/virtual_field.git');
-    chdir('virtual_field');
+    $this->execute('git clone http://git.drupal.org/project/adform.git');
+    chdir('adform');
     // Check out some revision.
-    $this->execute('git checkout f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6');
+    $this->execute('git checkout 2aecdac502f1d75b9f22b1f199205e1af21b451e');
     chdir($workdir);
 
-    $this->drush('bandaid-degit', array('virtual_field'), array('y' => TRUE), NULL, $workdir);
+    $this->drush('bandaid-degit', array('adform'), array('y' => TRUE), NULL, $workdir);
     // The YAML file should have been created.
-    $this->assertTrue(file_exists('virtual_field.omg.yml'));
-    $yaml = Yaml::parse('virtual_field.omg.yml');
+    $this->assertTrue(file_exists('adform.omg.yml'));
+    $yaml = Yaml::parse('adform.omg.yml');
 
     $this->assertEquals('git', $yaml['project']['type']);
-    $this->assertEquals('http://git.drupal.org/project/virtual_field.git', $yaml['project']['origin']);
-    $this->assertEquals('f58c1e327aeb3ec6cd3aa5bf8b2b18b06f3e0ca6', $yaml['project']['revision']);
+    $this->assertEquals('http://git.drupal.org/project/adform.git', $yaml['project']['origin']);
+    $this->assertEquals('2aecdac502f1d75b9f22b1f199205e1af21b451e', $yaml['project']['revision']);
 
     // Ensure that the git dir has been removed.
-    $this->assertFalse(file_exists('virtual_field/.git'));
+    $this->assertFalse(file_exists('adform/.git'));
+
+    // Apply a patch, and check for success.
+    $options = array(
+      'home' => 'https://www.drupal.org/node/1917344',
+      'reason' => 'Support for product tracking.',
+    );
+    $patch1_string = "// Product tracking.";
+    $this->assertEmpty($this->grep($patch1_string, $workdir . '/adform'));
+    $this->drush('bandaid-patch', array('https://www.drupal.org/files/1917344-adform-product-tracking-1.patch', 'adform'), $options, NULL, $workdir);
+    $this->assertNotEmpty($this->grep($patch1_string, $workdir . '/adform'));
+
+    // Ensure that the project information is still in the YAML file (regression
+    // test).
+    $yaml = Yaml::parse('adform.omg.yml');
+
+    $this->assertEquals('git', $yaml['project']['type']);
+    $this->assertEquals('http://git.drupal.org/project/adform.git', $yaml['project']['origin']);
+    $this->assertEquals('2aecdac502f1d75b9f22b1f199205e1af21b451e', $yaml['project']['revision']);
+
     chdir($cwd);
   }
 
