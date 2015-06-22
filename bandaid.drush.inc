@@ -116,6 +116,15 @@ function bandaid_drush_command() {
     'aliases' => array('brg'),
   );
 
+  $items['bandaid-convert-from-patches-txt'] = array(
+    'description' => 'Convert PATCHES.txt to OMG',
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'arguments' => array(
+      'project' => 'Path to project to remove patches from. Default to current dir.',
+    ),
+    'aliases' => array('bcp'),
+  );
+
   return $items;
 }
 
@@ -1071,4 +1080,53 @@ function _bandaid_get_patches_from_issue($url) {
   }
   ksort($return);
   return $return;
+}
+
+/**
+ * Convert PATCHES.txt to OMG YAML files.
+ */
+function drush_bandaid_convert_from_patches_txt($project = NULL) {
+  $project = preg_replace('|/PATCHES.txt$|', '', $project);
+
+  $project = new Project($project);
+
+  // No path ... the module probably doesn't exist.
+  if (!$project->getPath()) {
+    return;
+  }
+
+  chdir($project->getPath());
+
+  $patches_txt = file_get_contents('PATCHES.txt');
+  $patches_txt = preg_replace('/(This file was automatically generated|The following patches).*$/m', '', $patches_txt);
+  $patches_yaml = Yaml::parse($patches_txt);
+
+  foreach ($patches_yaml as $item) {
+    $patch = array();
+
+    // Fix old style drupal.org links to point to https and www.drupal.org.
+    $item = preg_replace('|^(https?://(www\.)?drupal\.org/)|', 'https://www.drupal.org/', $item);
+
+    // Skip if patch is already added.
+    foreach ($project->getPatches() as $existing_patch)  {
+      if ($existing_patch['patch'] == $item) {
+        break 2;
+      }
+    }
+
+    $patch['patch'] = $item;
+    $patch['reason'] = 'Converted from PATCHES.txt';
+
+    // For d.o. issues lookup title in API and use for reason.
+    if (preg_match('|^https://www\.drupal\.org/files/.*-([0-9]+)-[0-9]+\.patch|', $item, $matches) ||
+      preg_match('|^https://www\.drupal\.org/files/([0-9]+)-.*\.patch|', $item, $matches)) {
+      $issue = json_decode(file_get_contents("https://www.drupal.org/api-d7/node/${matches[1]}.json"));
+      $patch['home'] = $issue->url;
+      $patch['reason'] = ucfirst($issue->title);
+    }
+
+    $project->addPatch($patch);
+  }
+
+  $project->save();
 }
