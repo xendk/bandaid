@@ -122,7 +122,12 @@ function bandaid_drush_command() {
     'description' => 'Convert PATCHES.txt to OMG',
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'arguments' => array(
-      'project' => 'Path to project to remove patches from. Default to current dir.',
+      'project' => 'Path to project that contains a PATCHES.txt. Default to current dir.',
+    ),
+    'options' => array(
+      'download' => 'Whether to download non drupal-org patches and store them.',
+      'download-destination' => 'Path to the local directory to download the patch to.',
+      'download-all' => 'Download all patches including patches originating on drupal.org.'
     ),
     'aliases' => array('bcp'),
   );
@@ -670,7 +675,7 @@ function drush_bandaid_regit($project = NULL) {
 
     // Clone into a temporary directory.
     $checkout_dir = _bandaid_tmpdir();
-    !_bandaid_clone($project->getOrigin(), $checkout_dir);
+    _bandaid_clone($project->getOrigin(), $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
 
     chdir($checkout_dir);
@@ -1186,50 +1191,129 @@ function _bandaid_get_patches_from_issue($url) {
 }
 
 /**
+ * Parse a PATCHES.txt and return a list of patch urls.
+ *
+ * @param string $patches_txt_path path to the file to parse.
+ *
+ * @return array
+ *   Array of patches, empty if none where found, FALSE if the file could not
+ *   be read.
+ */
+function _drush_bandaid_parse_patchestxt($patches_txt_path) {
+  $lines = file($patches_txt_path);
+
+  // Explicitly return FALSE if the file could not be read.
+  if ($lines === FALSE) {
+    return FALSE;
+  }
+
+  $patches = [];
+  // Find all lines starting with "- " and assume it is a patch.
+  foreach ($lines as $line) {
+    if (preg_match('|^- (.*)|', $line, $matches)) {
+      $patches[] = trim($matches[1]);
+    }
+  }
+
+  return $patches;
+}
+
+/**
  * Convert PATCHES.txt to OMG YAML files.
  */
-function drush_bandaid_convert_from_patches_txt($project = NULL) {
-  $project = preg_replace('|/PATCHES.txt$|', '', $project);
+function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL) {
+  // Strip off PATCHES.txt from the path.
+  $project_path = preg_replace('|/PATCHES.txt$|', '', $project_or_patches_path);
 
-  $project = new Project($project);
+  $project = new Project($project_path);
 
   // No path ... the module probably doesn't exist.
   if (!$project->getPath()) {
+    drush_log(dt("Unable to load project named !project", array('!project' => $project->getName() )), 'warning');
     return;
   }
 
   chdir($project->getPath());
+  $patches_txt_path = $project->getPath() . DIRECTORY_SEPARATOR . 'PATCHES.txt';
 
-  $patches_txt = file_get_contents('PATCHES.txt');
-  $patches_txt = preg_replace('/(This file was automatically generated|The following patches).*$/m', '', $patches_txt);
-  $patches_yaml = Yaml::parse($patches_txt);
+  if (!is_readable('PATCHES.txt')) {
+    drush_log(dt("Could not read patch-status from !path", array('!path' => $patches_txt_path )), 'warning');
+    return;
+  }
 
-  foreach ($patches_yaml as $item) {
+  $patches = _drush_bandaid_parse_patchestxt($patches_txt_path);
+  if (empty($patches_txt_path)) {
+    drush_log(dt("unable to parse !path", array('!path' => $patches_txt_path )), 'warning');
+    return;
+  }
+
+  $added_patches = array();
+  foreach ($patches as $patch_url) {
     $patch = array();
 
     // Fix old style drupal.org links to point to https and www.drupal.org.
-    $item = preg_replace('|^(https?://(www\.)?drupal\.org/)|', 'https://www.drupal.org/', $item);
+    $patch_url = preg_replace('|^(https?://(www\.)?drupal\.org/)|', 'https://www.drupal.org/', $patch_url);
 
     // Skip if patch is already added.
     foreach ($project->getPatches() as $existing_patch)  {
-      if ($existing_patch['patch'] == $item) {
+      if ($existing_patch['patch'] == $patch_url) {
         break 2;
       }
     }
 
-    $patch['patch'] = $item;
+    drush_log(dt('- adding !patch', array('!patch' => $patch_url)), 'ok');
+
+    // See if the patch should be stored locally.
+    if ($download = drush_get_option('download', FALSE)) {
+      // Download drupal.org patch (or all if configured to.)
+      if (drush_get_option('download-all', FALSE) || strpos($patch_url, 'https://www.drupal.org/') === FALSE) {
+        $destination_path = drush_get_option('download-destination', 'sites/all/patches');
+
+        // Prepare the destination directory and generate a unique filename.
+        $local_patch_path = _drush_bandaid_prepare_local_patch_path($patch_url, $destination_path);
+
+        $tmp_patch_path = _bandaid_get_file($patch_url);
+        if (!copy($tmp_patch_path, $local_patch_path)) {
+          throw new BandaidError('PATCHING_FAILED', dt('Could not copy the downloaded patch to the destination-path !local_patch_path.', array('!local_patch_path' => $local_patch_path)));
+        }
+        drush_log(dt('  - Downloaded to !destination', array(
+          '!destination' => $local_patch_path)
+        ), 'ok');
+
+        // Work on the local path from now on.
+        $patch_url = $local_patch_path;
+      }
+    }
+
+    $patch['patch'] = $patch_url;
     $patch['reason'] = 'Converted from PATCHES.txt';
 
     // For d.o. issues lookup title in API and use for reason.
-    if (preg_match('|^https://www\.drupal\.org/files/.*-([0-9]+)-[0-9]+\.patch|', $item, $matches) ||
-      preg_match('|^https://www\.drupal\.org/files/([0-9]+)-.*\.patch|', $item, $matches)) {
+    if (preg_match('|^https://www\.drupal\.org/files/.*-(\d+)-\d+\.patch|', $patch_url, $matches) ||
+      preg_match('|^https://www\.drupal\.org/files/(\d+)-.*\.patch|', $patch_url, $matches)) {
+      drush_log(dt('  - patch-url seems to contain a issue-number, attempting to fetch info from drupal.org', array('!patch' => $patch_url)), 'ok');
       $issue = json_decode(file_get_contents("https://www.drupal.org/api-d7/node/${matches[1]}.json"));
-      $patch['home'] = $issue->url;
-      $patch['reason'] = ucfirst($issue->title);
+
+      if (!empty($issue->url)) {
+        drush_log(dt('  - Issue url: !url', array('!url' => $issue->url)), 'ok');
+        $patch['home'] = $issue->url;
+      }
+
+      if (!empty($issue->title)) {
+        drush_log(dt('  - Reason: !reason', array('!reason' => ucfirst($issue->title))), 'ok');
+
+        $reason = 'Issue title: ' . ucfirst($issue->title);
+        $patch['reason'] = $reason;
+      }
     }
 
+    $added_patches[] = $patch_url;
     $project->addPatch($patch);
   }
 
-  $project->save();
+  if (!empty($added_patches)) {
+    $project->save();
+
+    drush_log(dt('Added !count patch(es) to !project', array('!count' => count($added_patches), '!project' => $project->getName())), 'ok');
+  }
 }
