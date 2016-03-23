@@ -1229,7 +1229,7 @@ function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL)
 
   // No path ... the module probably doesn't exist.
   if (!$project->getPath()) {
-    drush_log(dt("Unable to load project named !project", array('!project' => $project->getName() )), 'warning');
+    throw new BandaidError('NO_PROJECT', dt('Unable to load project named "!project"', array('!project' => $project->getName() )));
     return;
   }
 
@@ -1237,13 +1237,13 @@ function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL)
   $patches_txt_path = $project->getPath() . DIRECTORY_SEPARATOR . 'PATCHES.txt';
 
   if (!is_readable('PATCHES.txt')) {
-    drush_log(dt("Could not read patch-status from !path", array('!path' => $patches_txt_path )), 'warning');
+    throw new BandaidError('NO_PATCHES_TXT', dt("Could not read patch-status from !path", array('!path' => $patches_txt_path )));
     return;
   }
 
   $patches = _drush_bandaid_parse_patchestxt($patches_txt_path);
   if (empty($patches_txt_path)) {
-    drush_log(dt("unable to parse !path", array('!path' => $patches_txt_path )), 'warning');
+    throw new BandaidError('NO_PATCHES_TXT', dt("unable to parse !path", array('!path' => $patches_txt_path )));
     return;
   }
 
