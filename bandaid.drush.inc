@@ -1207,7 +1207,7 @@ function _drush_bandaid_parse_patchestxt($patches_txt_path) {
     return FALSE;
   }
 
-  $patches = [];
+  $patches = array();
   // Find all lines starting with "- " and assume it is a patch.
   foreach ($lines as $line) {
     if (preg_match('|^- (.*)|', $line, $matches)) {
