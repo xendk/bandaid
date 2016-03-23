@@ -1266,7 +1266,9 @@ function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL)
     // See if the patch should be stored locally.
     if ($download = drush_get_option('download', FALSE)) {
       // Download drupal.org patch (or all if configured to.)
-      if (drush_get_option('download-all', FALSE) || strpos($patch_url, 'https://www.drupal.org/') === FALSE) {
+      if (drush_get_option('download-all', FALSE)
+        || (strpos($patch_url, 'https://www.drupal.org/') === FALSE
+          && strpos($patch_url, '://cgit.drupalcode.org') === FALSE)) {
         $destination_path = drush_get_option('download-destination', 'sites/all/patches');
 
         // Prepare the destination directory and generate a unique filename.
