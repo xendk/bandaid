@@ -1262,6 +1262,7 @@ function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL)
     }
 
     drush_log(dt('- adding !patch', array('!patch' => $patch_url)), 'ok');
+    $patch['reason'] = 'Converted from PATCHES.txt';
 
     // See if the patch should be stored locally.
     if ($download = drush_get_option('download', FALSE)) {
@@ -1282,13 +1283,13 @@ function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL)
           '!destination' => $local_patch_path)
         ), 'ok');
 
+        $patch['reason'] .= ' and downloaded locally, original URL: ' . $patch_url;
         // Work on the local path from now on.
         $patch_url = $local_patch_path;
       }
     }
 
     $patch['patch'] = $patch_url;
-    $patch['reason'] = 'Converted from PATCHES.txt';
 
     // For d.o. issues lookup title in API and use for reason.
     if (preg_match('|^https://www\.drupal\.org/files/.*-(\d+)-\d+\.patch|', $patch_url, $matches) ||
