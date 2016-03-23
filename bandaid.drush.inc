@@ -47,6 +47,8 @@ function bandaid_drush_command() {
       'no-editor' => "Don't use an editor, prompt on command line instead.",
       'no-cache' => "Don't use patch download cache.",
       'info-file' => "Info file to use in case the module does not have one at its root. Specify relative to root, eg 'ldap_authentication/ldap_authentication.info'",
+      'download' => 'Download the patch and store it locally',
+      'download-destination' => 'Specifies the path the patch should be downloaded to, defaults to "sites/all/patches'
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('bp'),
@@ -114,6 +116,20 @@ function bandaid_drush_command() {
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'aliases' => array('brg'),
+  );
+
+  $items['bandaid-convert-from-patches-txt'] = array(
+    'description' => 'Convert PATCHES.txt to OMG',
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'arguments' => array(
+      'project' => 'Path to project that contains a PATCHES.txt. Default to current dir.',
+    ),
+    'options' => array(
+      'download' => 'Whether to download non drupal-org patches and store them.',
+      'download-destination' => 'Path to the local directory to download the patch to.',
+      'download-all' => 'Download all patches including patches originating on drupal.org.'
+    ),
+    'aliases' => array('bcp'),
   );
 
   return $items;
@@ -211,10 +227,10 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
     // Translate to patch URL if pointing at an issue.
     $patch = _bandaid_patch_from_issue($patch);
 
-    $filename = _bandaid_get_file($patch);
+    $tmp_patch_path = _bandaid_get_file($patch);
 
     chdir($project->getPath());
-    $patched = _bandaid_attempt_patch($filename);
+    $patched = _bandaid_attempt_patch($tmp_patch_path);
     chdir($cwd);
 
     if (!$patched) {
@@ -263,12 +279,92 @@ function drush_bandaid_patch($patch = NULL, $project = NULL) {
 
     $new_patch['reason'] = $reason;
 
+    // See if we should keep the patch locally.
+    if (drush_get_option('download', FALSE)) {
+      $destination_path = drush_get_option('download-destination',
+        'sites/all/patches');
+
+      // Prepare the destination directory and generate a unique filename.
+      $local_patch_path = _drush_bandaid_prepare_local_patch_path($patch, $destination_path);
+
+      if (!copy($tmp_patch_path, $local_patch_path)) {
+        throw new BandaidError('PATCHING_FAILED', dt('Could not copy the downloaded patch to the destination-path !local_patch_path.', array('!local_patch_path' => $local_patch_path)));
+      }
+
+      $new_patch['patch'] = $local_patch_path;
+    }
+
     $project->addPatch($new_patch);
     $project->save();
   }
   catch (BandaidError $e) {
     return $e->drushSetError();
   }
+}
+
+
+/**
+ * Ensures the local patch directory exists and returns a verified path to it.
+ *
+ * @param $patch_url
+ *   URL or path to the original patch.
+ *
+ * @param string $destination_path
+ *   Path to the local patch directory.
+ *
+ * @return string
+ *   Full destination-path to the patch.
+ */
+function _drush_bandaid_prepare_local_patch_path($patch_url, $destination_path) {
+  // Add drupal-root to the path if it is not absolute.
+  if (strpos($destination_path, '/') !== 0) {
+    $site_path = drush_get_context('DRUSH_SELECTED_DRUPAL_ROOT');
+
+    if (empty($site_path)) {
+      throw new BandaidError('PATCHING_FAILED',
+        dt('Download destination is relative (!destination) but could not resolve Drupal root.',
+          array('!destination' => $destination_path)));
+    }
+    else {
+      $destination_path = $site_path . DIRECTORY_SEPARATOR . $destination_path;
+    }
+  }
+
+  // Make sure that the destination directory either exists or can be created.
+  if (!file_exists($destination_path) && !@mkdir($destination_path, 0777, TRUE)) {
+    throw new BandaidError('PATCHING_FAILED',
+      dt('Download destination (!destination) did not exist and could not create the directory.',
+        array('!destination' => $destination_path)));
+  }
+
+  // We have the full path to the directory, now make sure we have a unique
+  // filename
+  $patch_filename = _bandaid_get_patch_filename($patch_url);
+  if (empty($patch_filename)) {
+    throw new BandaidError('PATCHING_FAILED', dt('Could not determine patch filename from !url.',
+        array('!url' => $patch_url)));
+  }
+
+  // We have the original filename, now en ensure it is valid in the destination
+  // -directory, if not make it so.
+  $patch_path_info = pathinfo($patch_filename);
+  $counter = 0;
+  $download_destination_full = $destination_path . DIRECTORY_SEPARATOR . $patch_path_info['filename'] . '.' . $patch_path_info['extension'];
+  while (file_exists($download_destination_full)) {
+    if ($counter > 1000) {
+      throw new BandaidError('PATCHING_FAILED',
+        dt('!filename already exists at destination !destination, failed to create a new unique name.',
+          array(
+            '!destination' => $destination_path,
+            '!filename' => $patch_path_info['filename']
+          )));
+    }
+
+    $download_destination_full = $destination_path . DIRECTORY_SEPARATOR . $patch_path_info['filename'] . '_' . $counter . '.' . $patch_path_info['extension'];
+    $counter++;
+  }
+
+  return $download_destination_full;
 }
 
 /**
@@ -579,7 +675,7 @@ function drush_bandaid_regit($project = NULL) {
 
     // Clone into a temporary directory.
     $checkout_dir = _bandaid_tmpdir();
-    !_bandaid_clone($project->getOrigin(), $checkout_dir);
+    _bandaid_clone($project->getOrigin(), $checkout_dir);
     drush_register_file_for_deletion(realpath($checkout_dir));
 
     chdir($checkout_dir);
@@ -975,6 +1071,17 @@ function _bandaid_get_file($download, $cache_duration = BANDAID_CACHE_LIFETIME_D
 }
 
 /**
+ * Parses an url or path to a patch and returns the filename.
+ */
+function _bandaid_get_patch_filename($url_or_path) {
+  if (!$path = parse_url($url_or_path, PHP_URL_PATH)) {
+    return FALSE;
+  }
+
+  return pathinfo($path, PATHINFO_BASENAME);
+}
+
+/**
  * Removes d.o/drush/bandaid metadata from info files.
  */
 function _bandaid_fix_info_files($dir) {
@@ -1081,4 +1188,135 @@ function _bandaid_get_patches_from_issue($url) {
   }
   ksort($return);
   return $return;
+}
+
+/**
+ * Parse a PATCHES.txt and return a list of patch urls.
+ *
+ * @param string $patches_txt_path path to the file to parse.
+ *
+ * @return array
+ *   Array of patches, empty if none where found, FALSE if the file could not
+ *   be read.
+ */
+function _drush_bandaid_parse_patchestxt($patches_txt_path) {
+  $lines = file($patches_txt_path);
+
+  // Explicitly return FALSE if the file could not be read.
+  if ($lines === FALSE) {
+    return FALSE;
+  }
+
+  $patches = array();
+  // Find all lines starting with "- " and assume it is a patch.
+  foreach ($lines as $line) {
+    if (preg_match('|^- (.*)|', $line, $matches)) {
+      $patches[] = trim($matches[1]);
+    }
+  }
+
+  return $patches;
+}
+
+/**
+ * Convert PATCHES.txt to OMG YAML files.
+ */
+function drush_bandaid_convert_from_patches_txt($project_or_patches_path = NULL) {
+  // Strip off PATCHES.txt from the path.
+  $project_path = preg_replace('|/PATCHES.txt$|', '', $project_or_patches_path);
+
+  $project = new Project($project_path);
+
+  // No path ... the module probably doesn't exist.
+  if (!$project->getPath()) {
+    throw new BandaidError('NO_PROJECT', dt('Unable to load project named "!project"', array('!project' => $project->getName() )));
+    return;
+  }
+
+  chdir($project->getPath());
+  $patches_txt_path = $project->getPath() . DIRECTORY_SEPARATOR . 'PATCHES.txt';
+
+  if (!is_readable('PATCHES.txt')) {
+    throw new BandaidError('NO_PATCHES_TXT', dt("Could not read patch-status from !path", array('!path' => $patches_txt_path )));
+    return;
+  }
+
+  $patches = _drush_bandaid_parse_patchestxt($patches_txt_path);
+  if (empty($patches_txt_path)) {
+    throw new BandaidError('NO_PATCHES_TXT', dt("unable to parse !path", array('!path' => $patches_txt_path )));
+    return;
+  }
+
+  $added_patches = array();
+  foreach ($patches as $patch_url) {
+    $patch = array();
+
+    // Fix old style drupal.org links to point to https and www.drupal.org.
+    $patch_url = preg_replace('|^(https?://(www\.)?drupal\.org/)|', 'https://www.drupal.org/', $patch_url);
+
+    // Skip if patch is already added.
+    foreach ($project->getPatches() as $existing_patch)  {
+      if ($existing_patch['patch'] == $patch_url) {
+        break 2;
+      }
+    }
+
+    drush_log(dt('- adding !patch', array('!patch' => $patch_url)), 'ok');
+    $patch['reason'] = 'Converted from PATCHES.txt';
+
+    // See if the patch should be stored locally.
+    if ($download = drush_get_option('download', FALSE)) {
+      // Download drupal.org patch (or all if configured to.)
+      if (drush_get_option('download-all', FALSE)
+        || (strpos($patch_url, 'https://www.drupal.org/') === FALSE
+          && strpos($patch_url, '://cgit.drupalcode.org') === FALSE)) {
+        $destination_path = drush_get_option('download-destination', 'sites/all/patches');
+
+        // Prepare the destination directory and generate a unique filename.
+        $local_patch_path = _drush_bandaid_prepare_local_patch_path($patch_url, $destination_path);
+
+        $tmp_patch_path = _bandaid_get_file($patch_url);
+        if (!copy($tmp_patch_path, $local_patch_path)) {
+          throw new BandaidError('PATCHING_FAILED', dt('Could not copy the downloaded patch to the destination-path !local_patch_path.', array('!local_patch_path' => $local_patch_path)));
+        }
+        drush_log(dt('  - Downloaded to !destination', array(
+          '!destination' => $local_patch_path)
+        ), 'ok');
+
+        $patch['reason'] .= ' and downloaded locally, original URL: ' . $patch_url;
+        // Work on the local path from now on.
+        $patch_url = $local_patch_path;
+      }
+    }
+
+    $patch['patch'] = $patch_url;
+
+    // For d.o. issues lookup title in API and use for reason.
+    if (preg_match('|^https://www\.drupal\.org/files/.*-(\d+)-\d+\.patch|', $patch_url, $matches) ||
+      preg_match('|^https://www\.drupal\.org/files/(\d+)-.*\.patch|', $patch_url, $matches)) {
+      drush_log(dt('  - patch-url seems to contain a issue-number, attempting to fetch info from drupal.org', array('!patch' => $patch_url)), 'ok');
+      $issue = json_decode(file_get_contents("https://www.drupal.org/api-d7/node/${matches[1]}.json"));
+
+      if (!empty($issue->url)) {
+        drush_log(dt('  - Issue url: !url', array('!url' => $issue->url)), 'ok');
+        $patch['home'] = $issue->url;
+      }
+
+      if (!empty($issue->title)) {
+        drush_log(dt('  - Reason: !reason', array('!reason' => ucfirst($issue->title))), 'ok');
+
+        $reason = 'Issue title: ' . ucfirst($issue->title);
+        $patch['reason'] = $reason;
+      }
+    }
+
+    $added_patches[] = $patch_url;
+    $project->addPatch($patch);
+  }
+
+  if (!empty($added_patches)) {
+    $project->save();
+
+    drush_log(dt('Added !count patch(es) to !project', array('!count' => count($added_patches), '!project' => $project->getName())), 'ok');
+  }
 }
